@@ -3,327 +3,308 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arena Principal - Jogos da Fábrica de Conteúdos</title>
+  <title>Arena Principal</title>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Biblioteca PeerJS para WebRTC P2P -->
   <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
   <style>
     body { background: #0d0a1a; color: #f4f0ff; font-family: 'Bricolage Grotesque', sans-serif; margin: 0; overflow: hidden; }
     canvas { display: block; }
+    @keyframes slideUpFade { from { opacity: 0; transform: translateY(100px) scale(0.8); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .podium-card { animation: slideUpFade 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; }
+    .delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.6s; } .delay-3 { animation-delay: 1.0s; }
   </style>
 </head>
 <body class="h-screen w-screen flex flex-col justify-between p-4 relative">
+
+  <div id="start-overlay" class="absolute inset-0 bg-[#0d0a1a] z-[60] flex flex-col items-center justify-center">
+    <button id="btn-start-server" class="px-8 py-5 rounded-2xl bg-gradient-to-r from-[#ff6b00] to-[#ffb700] text-[#0d0a1a] font-black text-2xl shadow-[0_0_30px_rgba(255,107,0,0.5)] hover:scale-105 transition-all">
+      INICIAR PARTIDA (3 MINUTOS) 🚀
+    </button>
+  </div>
 
   <header class="flex justify-between items-center bg-[#17122b]/90 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-md z-10">
     <div class="flex items-center gap-4">
       <div id="status-dot" class="w-4 h-4 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(255,0,0,0.8)]"></div>
       <div>
-        <h1 class="text-xl font-extrabold bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">
-          FÁBRICA DE CONTEÚDOS · ARENA MULTIPLAYER
-        </h1>
-        <p id="room-status" class="text-xs text-[#9a93b8]">Iniciando servidor local...</p>
+        <h1 class="text-xl font-extrabold bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent">ARENA FÁBRICA DE CONTEÚDOS</h1>
+        <p id="room-status" class="text-xs text-[#9a93b8]">Aguardando inicialização...</p>
       </div>
     </div>
-    <div class="flex items-center gap-8">
+    
+    <!-- TEMPORIZADOR DE PARTIDA -->
+    <div class="text-center bg-black/40 px-6 py-2 rounded-xl border border-white/10 shadow-inner">
+      <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1 tracking-widest">Tempo Restante</div>
+      <div id="game-timer" class="text-4xl font-black text-[#4ade80] tracking-widest" style="text-shadow: 0 0 10px rgba(74,222,128,0.5);">03:00</div>
+    </div>
+
+    <div class="flex items-center gap-6">
       <div class="text-center bg-[#251e42] px-4 py-2 rounded-xl border border-white/10">
-        <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1">Código da Sala</div>
+        <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1">CÓDIGO DE ACESSO</div>
         <div id="room-code-display" class="text-3xl font-black text-white tracking-widest">----</div>
       </div>
       <div class="text-right">
-        <div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos Online</div>
-        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0 / 20</div>
+        <div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos</div>
+        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0/20</div>
       </div>
-      <button id="btn-finish" class="px-5 py-3 rounded-xl bg-[#ff3d8b] hover:bg-[#ff5d7a] font-extrabold text-sm shadow-[0_0_15px_rgba(255,61,139,0.5)] transition-all">VER TOP 3 🏆</button>
     </div>
   </header>
 
   <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#05030a]">
     <canvas id="arena-canvas" class="w-full h-full"></canvas>
 
-    <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center backdrop-blur-sm">
-      <h2 class="text-5xl font-extrabold mb-4 bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">🏆 PÓDIO DE LIDERANÇA 🏆</h2>
-      <p class="text-[#9a93b8] mb-8 font-semibold">Os maiores destrutores de barreiras organizacionais</p>
-      <div id="podium-list" class="flex justify-center items-end gap-6 mb-10 w-full max-w-4xl"></div>
-      <button onclick="location.reload()" class="px-8 py-4 rounded-xl bg-[#ff6b00] hover:bg-[#ff8533] font-extrabold text-lg transition-all shadow-lg">REINICIAR ARENA</button>
+    <!-- TELA DE PÓDIO ANIMADA -->
+    <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md">
+      <h2 class="text-6xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent animate-pulse">FIM DE JOGO!</h2>
+      <p class="text-[#9a93b8] mb-12 font-bold tracking-widest uppercase text-sm">Ranking Oficial de Liderança</p>
+      <div id="podium-list" class="flex justify-center items-end gap-6 mb-12 w-full max-w-5xl"></div>
+      <button onclick="location.reload()" class="px-10 py-5 rounded-2xl bg-[#ff6b00] text-white hover:bg-[#ff8533] font-black text-xl transition-all shadow-[0_0_20px_rgba(255,107,0,0.5)]">JOGAR NOVAMENTE</button>
     </div>
   </main>
 
 <script>
-  // Setup Canvas & Graphics
-  const canvas = document.getElementById('arena-canvas');
-  const ctx = canvas.getContext('2d');
-  let W = 0, H = 0;
-  
-  let stars = [];
-  function resize() { 
-    W = canvas.width = canvas.parentElement.clientWidth; 
-    H = canvas.height = canvas.parentElement.clientHeight; 
-    stars = Array.from({length: 150}, () => ({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2+0.5, v: Math.random()*1+0.5}));
+  let audioCtx;
+  function playNoise(duration, vol, freq=800) {
+    if(!audioCtx) return; let bufferSize=audioCtx.sampleRate*duration; let buffer=audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
+    let data=buffer.getChannelData(0); for(let i=0;i<bufferSize;i++) data[i]=Math.random()*2-1;
+    let noise=audioCtx.createBufferSource(); noise.buffer=buffer; let filter=audioCtx.createBiquadFilter(); filter.type='lowpass'; filter.frequency.value=freq;
+    let gain=audioCtx.createGain(); gain.gain.setValueAtTime(vol,audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+duration);
+    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination); noise.start();
   }
-  window.addEventListener('resize', resize);
-  resize();
+  function playLaser(freq, duration, vol) {
+    if(!audioCtx) return; let osc=audioCtx.createOscillator(); let gain=audioCtx.createGain(); osc.type='square';
+    osc.frequency.setValueAtTime(freq,audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(freq/2,audioCtx.currentTime+duration);
+    gain.gain.setValueAtTime(vol,audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+duration);
+    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime+duration);
+  }
 
-  // Entidades do Jogo
-  let players = {};
-  let connections = {};
-  let bullets = [], enemies = [], particles = [];
+  const canvas = document.getElementById('arena-canvas'); const ctx = canvas.getContext('2d');
+  let W=0, H=0, stars=[];
+  function resize() { W=canvas.width=canvas.parentElement.clientWidth; H=canvas.height=canvas.parentElement.clientHeight; 
+    stars=Array.from({length: 150}, ()=>({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2+0.5, v: Math.random()*1+0.5})); }
+  window.addEventListener('resize', resize); resize();
+
+  let players={}, connections={}, bullets=[], enemies=[], particles=[], floatTexts=[];
+  let gameActive = false; let gameTime = 180; let screenShake = 0;
 
   const TARGETS = [
-    { title: 'Microgerenciamento', hp: 3, pts: 30, color: '#ff3d8b' },
-    { title: 'Falta de Feedback', hp: 2, pts: 20, color: '#ff3d8b' },
+    { title: 'Microgerenciamento', hp: 3, pts: 30, color: '#ffb700' },
     { title: 'Silos Organizacionais', hp: 4, pts: 40, color: '#0055ff' },
     { title: 'Processos Engessados', hp: 3, pts: 30, color: '#0055ff' },
     { title: 'Dívida Técnica', hp: 2, pts: 25, color: '#ff6b00' },
     { title: 'Churn de Clientes', hp: 5, pts: 50, color: '#ff6b00' }
   ];
 
-  // Configuração WebRTC (PeerJS)
-  const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-  document.getElementById('room-code-display').textContent = roomCode;
-  
-  const peer = new Peer('fabrica-' + roomCode);
+  document.getElementById('btn-start-server').addEventListener('click', () => {
+    document.getElementById('start-overlay').style.display = 'none';
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume();
+    const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+    document.getElementById('room-code-display').textContent = roomCode;
+    const peer = new Peer('fabrica-' + roomCode);
 
-  peer.on('open', (id) => {
-    document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-[#4ade80]');
-    document.getElementById('status-dot').classList.replace('shadow-[0_0_10px_rgba(255,0,0,0.8)]', 'shadow-[0_0_10px_rgba(74,222,128,0.8)]');
-    document.getElementById('room-status').textContent = 'Servidor Online - Aguardando jogadores';
-  });
-
-  peer.on('connection', (conn) => {
-    conn.on('data', (data) => {
-      if(data.type === 'JOIN') {
-        players[data.player.id] = {
-          ...data.player,
-          x: W / 2 + (Math.random() * 200 - 100),
-          y: H - 120,
-          inputs: {}, lastShoot: 0, 
-          vx: 0, vy: 0
-        };
-        connections[data.player.id] = conn;
-        updatePlayerCount();
-      }
-      
-      if(data.type === 'INPUT' && players[data.playerId]) {
-        players[data.playerId].inputs = data.inputs;
-      }
+    peer.on('open', () => {
+      document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-[#4ade80]');
+      document.getElementById('room-status').textContent = 'Partida Pronta!';
+      gameActive = true; setInterval(updateTimer, 1000); // Inicia Temporizador
     });
 
-    conn.on('close', () => {
-      // Limpar jogador desconectado
-      const id = Object.keys(connections).find(key => connections[key] === conn);
-      if(id) { delete players[id]; delete connections[id]; updatePlayerCount(); }
+    peer.on('connection', (conn) => {
+      conn.on('data', (data) => {
+        if(data.type === 'JOIN') {
+          playLaser(800, 0.5, 0.1);
+          players[data.player.id] = { ...data.player, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0 };
+          connections[data.player.id] = conn; document.getElementById('conn-count').textContent = Object.keys(players).length+'/20';
+        }
+        if(data.type === 'INPUT' && players[data.playerId]) players[data.playerId].inputs = data.inputs;
+      });
+      conn.on('close', () => { const id = Object.keys(connections).find(k=>connections[k]===conn); if(id){delete players[id]; delete connections[id];} });
     });
+
+    setInterval(() => {
+      if(gameActive && enemies.length < 8 + Object.keys(players).length*2) {
+        let t = TARGETS[Math.floor(Math.random()*TARGETS.length)];
+        enemies.push({ x: Math.random()*(W-140)+70, y: -50, vy: 1.0+Math.random()*1.5, ...t, maxHp: t.hp });
+      }
+    }, 1200);
+
+    requestAnimationFrame(loop);
   });
 
-  function updatePlayerCount() {
-    document.getElementById('conn-count').textContent = Object.keys(players).length + ' / 20';
+  function updateTimer() {
+    if(!gameActive) return;
+    gameTime--;
+    let m = Math.floor(gameTime/60).toString().padStart(2,'0'); let s = (gameTime%60).toString().padStart(2,'0');
+    let tEl = document.getElementById('game-timer'); tEl.textContent = `${m}:${s}`;
+    if(gameTime <= 30) tEl.classList.replace('text-[#4ade80]', 'text-red-500'); // Fica vermelho nos 30s finais
+    
+    if(gameTime <= 0) { gameActive = false; showPodium(); }
   }
 
-  // Spawn de Inimigos
-  setInterval(() => {
-    if(enemies.length < 8 + Object.keys(players).length * 2) {
-      let t = TARGETS[Math.floor(Math.random() * TARGETS.length)];
-      enemies.push({ x: Math.random() * (W - 140) + 70, y: -50, vy: 1.0 + Math.random()*1.5, ...t, maxHp: t.hp });
-    }
-  }, 1500);
+  function showPodium() {
+    let list = document.getElementById('podium-list'); list.innerHTML = '';
+    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
+    
+    // Rearranja para o 1º lugar ficar no centro (Ordem visual: 2º, 1º, 3º)
+    let displayOrder = [];
+    if(sorted[1]) displayOrder.push({p: sorted[1], pos: 2, delay: 'delay-2', height: 'h-64'});
+    if(sorted[0]) displayOrder.push({p: sorted[0], pos: 1, delay: 'delay-1', height: 'h-80', extra: 'scale-110 z-10 shadow-[0_0_40px_rgba(255,183,0,0.4)]'});
+    if(sorted[2]) displayOrder.push({p: sorted[2], pos: 3, delay: 'delay-3', height: 'h-52'});
 
-  // Explosões Visuais
-  function spawnParticles(x, y, color) {
-    for(let i=0; i<15; i++) {
-      particles.push({ x, y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1.0, color });
-    }
+    displayOrder.forEach((item) => {
+      let medals = {1:'🥇 CAMPEÃO', 2:'🥈 2º LUGAR', 3:'🥉 3º LUGAR'};
+      let card = document.createElement('div');
+      card.className = `podium-card ${item.delay} flex-1 bg-[#17122b] p-6 rounded-t-3xl border border-white/10 flex flex-col justify-end items-center ${item.height} relative overflow-hidden ${item.extra||''}`;
+      card.innerHTML = `
+        <div class="absolute top-0 w-full h-3" style="background:${item.p.color}"></div>
+        <div class="text-sm font-black text-white/60 mb-auto mt-4 tracking-widest">${medals[item.pos]}</div>
+        <div class="font-black text-4xl uppercase mb-1" style="color:${item.p.color}">${item.p.name}</div>
+        <div class="text-5xl font-black text-white">${item.p.score} <span class="text-lg text-[#9a93b8]">pts</span></div>
+      `;
+      list.appendChild(card);
+    });
+    document.getElementById('podium-modal').classList.remove('hidden');
   }
 
-  // Lógica do Jogo
+  function spawnParticles(x, y, color) { for(let i=0; i<25; i++) particles.push({ x,y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, life:1.0, color }); }
+  function spawnText(x, y, text, color) { floatTexts.push({x, y, text, color, life: 1.0, vy: -1.5}); }
+
   function update() {
-    // Estrelas
     stars.forEach(s => { s.y += s.v; if(s.y > H) s.y = 0; });
+    if(!gameActive) return;
 
-    // Atualiza Jogadores
     Object.keys(players).forEach(id => {
-      let p = players[id];
-      if(p.lives <= 0) return; // Morto
+      let p = players[id]; if(p.lives <= 0) return;
+      if(p.invuln > 0) p.invuln--;
 
-      let accel = 0.8, friction = 0.85, maxSpd = (p.model==='agile') ? 8 : (p.model==='heavy') ? 5 : 6;
-      
-      if(p.inputs['LEFT']) p.vx -= accel;
-      if(p.inputs['RIGHT']) p.vx += accel;
-      if(p.inputs['UP']) p.vy -= accel;
-      if(p.inputs['DOWN']) p.vy += accel;
+      let accel=0.8, friction=0.85, maxSpd=(p.model==='fighter')?9:(p.model==='heavy')?5:7;
+      if(p.inputs['LEFT']) p.vx-=accel; if(p.inputs['RIGHT']) p.vx+=accel; if(p.inputs['UP']) p.vy-=accel; if(p.inputs['DOWN']) p.vy+=accel;
+      p.vx*=friction; p.vy*=friction; p.x=Math.max(40,Math.min(W-40,p.x+p.vx)); p.y=Math.max(40,Math.min(H-40,p.y+p.vy));
 
-      p.vx *= friction; p.vy *= friction;
-      
-      // Limites de Velocidade e Tela
-      p.vx = Math.max(-maxSpd, Math.min(maxSpd, p.vx));
-      p.vy = Math.max(-maxSpd, Math.min(maxSpd, p.vy));
-      p.x = Math.max(30, Math.min(W - 30, p.x + p.vx));
-      p.y = Math.max(30, Math.min(H - 30, p.y + p.vy));
-
-      // Tiros
+      // LÓGICA DE TIRO (BASEADA NO WEAPON LEVEL)
       if(p.inputs['SHOOT']) {
-        let fireRate = p.model === 'heavy' ? 300 : 150;
+        let fireRate = p.weaponLvl >= 4 ? 100 : 150; // Lvl máximo atira mais rápido
         if(Date.now() - p.lastShoot > fireRate) {
           p.lastShoot = Date.now();
-          if(p.model === 'heavy') {
-            bullets.push({ x: p.x - 12, y: p.y - 20, vy: -10, color: p.color, ownerId: p.id, dmg: 2 });
-            bullets.push({ x: p.x + 12, y: p.y - 20, vy: -10, color: p.color, ownerId: p.id, dmg: 2 });
-          } else {
-            bullets.push({ x: p.x, y: p.y - 25, vy: -14, color: p.color, ownerId: p.id, dmg: 1 });
+          playLaser(p.weaponLvl*200 + 400, 0.1, 0.05); // Som muda com o level
+          
+          let w = p.weaponLvl || 1;
+          if(w === 1) { bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); }
+          else if(w === 2) { 
+            bullets.push({ x:p.x-10, y:p.y-25, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); 
+            bullets.push({ x:p.x+10, y:p.y-25, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); 
+          }
+          else if(w === 3) {
+            bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
+            bullets.push({ x:p.x-15, y:p.y-25, vx:-2, vy:-13, color:p.color, ownerId:p.id, dmg:1 });
+            bullets.push({ x:p.x+15, y:p.y-25, vx:2, vy:-13, color:p.color, ownerId:p.id, dmg:1 });
+          }
+          else { // LVL 4 MÁXIMO
+            bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-16, color:'#ffffff', ownerId:p.id, dmg:2 });
+            bullets.push({ x:p.x-15, y:p.y-25, vx:-3, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
+            bullets.push({ x:p.x+15, y:p.y-25, vx:3, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
           }
         }
       }
-
-      // Sincroniza estado para o celular deste jogador
-      if(connections[id]) {
-        connections[id].send({ type: 'SYNC', score: p.score, lives: p.lives, weaponLvl: p.weaponLvl });
-      }
+      if(connections[id]) connections[id].send({ type:'SYNC', score:p.score, lives:p.lives, weaponLvl:p.weaponLvl });
     });
 
-    // Partículas
-    for(let i = particles.length - 1; i >= 0; i--) {
-      let pt = particles[i];
-      pt.x += pt.vx; pt.y += pt.vy; pt.life -= 0.05;
-      if(pt.life <= 0) particles.splice(i, 1);
-    }
+    for(let i=particles.length-1; i>=0; i--) { let pt=particles[i]; pt.x+=pt.vx; pt.y+=pt.vy; pt.life-=0.04; if(pt.life<=0) particles.splice(i,1); }
+    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.02; if(ft.life<=0) floatTexts.splice(i,1); }
 
-    // Tiros e Colisões
-    for(let i = bullets.length - 1; i >= 0; i--) {
-      let b = bullets[i];
-      b.y += b.vy;
-      if(b.y < -20) { bullets.splice(i, 1); continue; }
-      
-      for(let j = enemies.length - 1; j >= 0; j--) {
-        let e = enemies[j];
-        if(Math.abs(b.x - e.x) < 55 && Math.abs(b.y - e.y) < 25) {
-          e.hp -= b.dmg;
-          bullets.splice(i, 1);
-          spawnParticles(b.x, b.y, b.color);
-          
-          if(e.hp <= 0) {
-            spawnParticles(e.x, e.y, e.color);
-            if(players[b.ownerId]) players[b.ownerId].score += e.pts;
-            enemies.splice(j, 1);
-          }
-          break;
+    for(let i=bullets.length-1; i>=0; i--) {
+      let b=bullets[i]; b.x+=b.vx; b.y+=b.vy; if(b.y < -20) { bullets.splice(i,1); continue; }
+      for(let j=enemies.length-1; j>=0; j--) {
+        let e=enemies[j];
+        if(Math.abs(b.x-e.x)<55 && Math.abs(b.y-e.y)<25) {
+          e.hp-=b.dmg; bullets.splice(i,1); spawnParticles(b.x,b.y,b.color);
+          if(e.hp<=0) {
+            playNoise(0.3, 0.15, 400); spawnParticles(e.x,e.y,e.color); screenShake=8;
+            
+            // SISTEMA DE EVOLUÇÃO (LEVEL UP)
+            let shooter = players[b.ownerId];
+            if(shooter) {
+              shooter.score += e.pts; shooter.kills = (shooter.kills||0) + 1;
+              spawnText(e.x, e.y, `+${e.pts}`, '#3dd6ff');
+              
+              let oldLvl = shooter.weaponLvl;
+              if(shooter.kills >= 15) shooter.weaponLvl = 4;
+              else if(shooter.kills >= 7) shooter.weaponLvl = 3;
+              else if(shooter.kills >= 3) shooter.weaponLvl = 2;
+
+              if(shooter.weaponLvl > oldLvl) {
+                spawnText(shooter.x, shooter.y-50, '⚡ LEVEL UP ⚡', '#ffb700');
+                if(connections[shooter.id]) connections[shooter.id].send({type:'EVENT', event:'POWERUP'});
+              } else {
+                if(connections[shooter.id]) connections[shooter.id].send({type:'EVENT', event:'KILL'});
+              }
+            }
+            enemies.splice(j,1);
+          } break;
         }
       }
     }
 
-    // Inimigos colidindo com Jogador
-    for(let i = enemies.length - 1; i >= 0; i--) {
-      let e = enemies[i];
-      e.y += e.vy;
-      if(e.y > H + 50) { enemies.splice(i, 1); continue; }
-      
+    for(let i=enemies.length-1; i>=0; i--) {
+      let e=enemies[i]; e.y+=e.vy; if(e.y>H+50){enemies.splice(i,1); continue;}
       Object.keys(players).forEach(id => {
-        let p = players[id];
-        if(p.lives > 0 && Math.abs(e.x - p.x) < 40 && Math.abs(e.y - p.y) < 30) {
-          p.lives--;
-          spawnParticles(p.x, p.y, '#ff3d8b');
-          enemies.splice(i, 1);
+        let p=players[id];
+        // DANO AO JOGADOR -> PERDE LEVEL DA ARMA
+        if(p.lives>0 && p.invuln<=0 && Math.abs(e.x-p.x)<45 && Math.abs(e.y-p.y)<35) {
+          p.lives--; p.weaponLvl=1; p.kills=0; p.invuln=120; // Zera arma e fica imune
+          playNoise(0.6, 0.3, 200); spawnParticles(p.x,p.y,'#ff0000'); screenShake=25; // Tremor forte
+          spawnText(p.x, p.y-30, 'PUNIDO!', '#ff0000');
+          enemies.splice(i,1);
+          if(connections[id]) connections[id].send({type:'EVENT', event:'HIT'});
         }
       });
     }
   }
 
-  // Renderização
   function draw() {
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#ffffff'; stars.forEach(s=>{ctx.globalAlpha=s.v/2; ctx.fillRect(s.x,s.y,s.s,s.s);}); ctx.globalAlpha=1.0;
+
+    ctx.save();
+    if(screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); screenShake*=0.85; if(screenShake<0.5) screenShake=0; }
+
+    enemies.forEach(e=>{
+      ctx.fillStyle='#333'; ctx.fillRect(e.x-55,e.y+22,110,4); ctx.fillStyle='#4ade80'; ctx.fillRect(e.x-55,e.y+22,110*(e.hp/e.maxHp),4);
+      ctx.fillStyle=e.color; ctx.shadowColor=e.color; ctx.shadowBlur=10; ctx.beginPath(); ctx.roundRect(e.x-55,e.y-18,110,36,6); ctx.fill(); ctx.shadowBlur=0; 
+      ctx.fillStyle='#0d0a1a'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(e.title,e.x,e.y);
+    });
+
+    particles.forEach(pt=>{ ctx.globalAlpha=Math.max(0,pt.life); ctx.fillStyle=pt.color; ctx.beginPath(); ctx.arc(pt.x,pt.y,4*pt.life,0,Math.PI*2); ctx.fill(); }); ctx.globalAlpha=1.0;
     
-    // Fundo Estrelado
-    ctx.fillStyle = '#ffffff';
-    stars.forEach(s => { ctx.globalAlpha = s.v/2; ctx.fillRect(s.x, s.y, s.s, s.s); });
-    ctx.globalAlpha = 1.0;
+    bullets.forEach(b=>{ ctx.fillStyle=b.color; ctx.shadowColor=b.color; ctx.shadowBlur=10; ctx.fillRect(b.x-2,b.y-8,4,16); ctx.shadowBlur=0; });
 
-    // Inimigos
-    enemies.forEach(e => {
-      // Barra de vida
-      ctx.fillStyle = '#333'; ctx.fillRect(e.x - 55, e.y + 22, 110, 4);
-      ctx.fillStyle = '#4ade80'; ctx.fillRect(e.x - 55, e.y + 22, 110 * (e.hp/e.maxHp), 4);
+    Object.keys(players).forEach(id=>{
+      let p=players[id]; if(p.lives<=0) return;
+      if(p.invuln>0 && Math.floor(Date.now()/100)%2===0) return;
+      ctx.save(); ctx.translate(p.x,p.y);
+      ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name,0,-45);
+      ctx.fillStyle='#ffb700'; ctx.font='11px sans-serif'; ctx.fillText(p.score+' pts',0,45);
       
-      ctx.fillStyle = e.color;
-      ctx.shadowColor = e.color; ctx.shadowBlur = 10;
-      ctx.beginPath(); ctx.roundRect(e.x - 55, e.y - 18, 110, 36, 6); ctx.fill();
-      ctx.shadowBlur = 0; // reset
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(e.title, e.x, e.y);
-    });
-
-    // Partículas
-    particles.forEach(pt => {
-      ctx.globalAlpha = Math.max(0, pt.life);
-      ctx.fillStyle = pt.color;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, 3 * pt.life, 0, Math.PI*2); ctx.fill();
-    });
-    ctx.globalAlpha = 1.0;
-
-    // Tiros
-    bullets.forEach(b => {
-      ctx.fillStyle = b.color;
-      ctx.shadowColor = b.color; ctx.shadowBlur = 8;
-      ctx.fillRect(b.x - 2, b.y - 8, 4, 16);
-      ctx.shadowBlur = 0;
-    });
-
-    // Jogadores
-    Object.keys(players).forEach(id => {
-      let p = players[id];
-      if(p.lives <= 0) return;
-
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      
-      // Nome e Score
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(p.name, 0, -35);
-      ctx.fillStyle = '#ff6b00'; ctx.font = '9px sans-serif';
-      ctx.fillText(p.score + ' pts', 0, 35);
-
-      ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color; ctx.shadowBlur = 15;
-
-      // Desenha o modelo rotacionado levemente com base na velocidade X
-      ctx.rotate((p.vx * 2) * Math.PI / 180);
-
-      if(p.model === 'fighter') {
-        ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(14, 14); ctx.lineTo(0, 8); ctx.lineTo(-14, 14); ctx.closePath(); ctx.fill();
-      } else if(p.model === 'heavy') {
-        ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(24, 10); ctx.lineTo(8, 16); ctx.lineTo(-8, 16); ctx.lineTo(-24, 10); ctx.closePath(); ctx.fill();
-      } else {
-        ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, 12); ctx.lineTo(0, -2); ctx.lineTo(-18, 12); ctx.closePath(); ctx.fill();
+      // Aura se tiver Weapon Lvl Alto
+      if(p.weaponLvl >= 3) {
+        ctx.strokeStyle=p.color; ctx.globalAlpha=0.3; ctx.beginPath(); ctx.arc(0,0,30,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1.0;
       }
 
+      ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=15; ctx.rotate((p.vx*2)*Math.PI/180); ctx.scale(1.3,1.3);
+      if(p.model==='fighter'){ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(14,14);ctx.lineTo(0,8);ctx.lineTo(-14,14);ctx.closePath();ctx.fill();}
+      else if(p.model==='heavy'){ctx.beginPath();ctx.moveTo(0,-18);ctx.lineTo(24,10);ctx.lineTo(8,16);ctx.lineTo(-8,16);ctx.lineTo(-24,10);ctx.closePath();ctx.fill();}
+      else{ctx.beginPath();ctx.moveTo(0,-20);ctx.lineTo(18,12);ctx.lineTo(0,-2);ctx.lineTo(-18,12);ctx.closePath();ctx.fill();}
       ctx.restore();
     });
+
+    floatTexts.forEach(ft => {
+      ctx.globalAlpha = Math.max(0, ft.life);
+      ctx.fillStyle = ft.color; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x, ft.y);
+    }); ctx.globalAlpha = 1.0;
+
+    ctx.restore(); // Fim do Screen Shake
   }
-
   function loop() { update(); draw(); requestAnimationFrame(loop); }
-  loop();
-
-  // Modal Podium
-  document.getElementById('btn-finish').addEventListener('click', () => {
-    let list = document.getElementById('podium-list');
-    list.innerHTML = '';
-    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
-    
-    if(sorted.length === 0) { list.innerHTML = '<p class="text-white">Nenhum jogador na sala.</p>'; }
-
-    sorted.forEach((p, index) => {
-      let heights = ['h-48', 'h-40', 'h-32'];
-      let medals = ['🥇 1º LUGAR', '🥈 2º LUGAR', '🥉 3º LUGAR'];
-      let card = document.createElement('div');
-      card.className = `flex-1 bg-[#17122b] p-6 rounded-t-2xl border border-white/10 flex flex-col justify-end items-center ${heights[index]} relative overflow-hidden`;
-      card.innerHTML = `
-        <div class="absolute top-0 w-full h-1" style="background:${p.color}"></div>
-        <div class="text-xs font-bold text-white/50 mb-auto mt-2">${medals[index]}</div>
-        <div class="font-black text-2xl uppercase mb-1" style="color:${p.color}">${p.name}</div>
-        <div class="text-3xl font-black text-white">${p.score} <span class="text-sm text-[#9a93b8]">pts</span></div>
-      `;
-      list.appendChild(card);
-    });
-    document.getElementById('podium-modal').classList.remove('hidden');
-  });
 </script>
 </body>
 </html>
