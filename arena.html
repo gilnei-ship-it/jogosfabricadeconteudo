@@ -48,7 +48,7 @@
   window.addEventListener('resize', resize);
   resize();
 
-  const channel = new BroadcastChannel('fabrica_conteudos_channel_v2');
+  const channel = new BroadcastChannel('fabrica_conteudos_v3');
   let players = {};
   let bullets = [], enemies = [];
 
@@ -67,12 +67,14 @@
       if(!players[data.player.id]) {
         players[data.player.id] = {
           ...data.player,
-          x: W / 2 + (Math.random() * 100 - 50),
+          x: W / 2 + (Math.random() * 150 - 75),
           y: H - 100,
           inputs: data.inputs || {}
         };
       } else {
         players[data.player.id].inputs = data.inputs || players[data.player.id].inputs;
+        players[data.player.id].model = data.player.model || players[data.player.id].model;
+        players[data.player.id].color = data.player.color || players[data.player.id].color;
       }
       document.getElementById('conn-count').textContent = Object.keys(players).length + ' / 20';
     }
@@ -151,14 +153,29 @@
       ctx.fillRect(b.x - 2, b.y - 8, 4, 16);
     });
 
+    // Renderiza cada avião conforme o modelo escolhido
     Object.keys(players).forEach(id => {
       let p = players[id];
       ctx.save();
       ctx.translate(p.x, p.y);
+      
+      // Nome do piloto
       ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(p.name, 0, -28);
+      ctx.fillText(p.name, 0, -32);
+
       ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(16, 14); ctx.lineTo(-16, 14); ctx.closePath(); ctx.fill();
+
+      if(p.model === 'fighter') {
+        // Modelo Ágil (Caça estreito)
+        ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(12, 14); ctx.lineTo(-12, 14); ctx.closePath(); ctx.fill();
+      } else if(p.model === 'heavy') {
+        // Modelo Pesado (Bombardeiro largo com asas duplas)
+        ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(20, 10); ctx.lineTo(8, 16); ctx.lineTo(-8, 16); ctx.lineTo(-20, 10); ctx.closePath(); ctx.fill();
+      } else {
+        // Modelo Furtivo (Forma de delta / UFO)
+        ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, 12); ctx.lineTo(0, 8); ctx.lineTo(-18, 12); ctx.closePath(); ctx.fill();
+      }
+
       ctx.restore();
     });
   }
