@@ -6,7 +6,6 @@
   <title>Arena Principal - Jogos da Fábrica de Conteúdos</title>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     body { background: #0d0a1a; color: #f4f0ff; font-family: 'Bricolage Grotesque', sans-serif; margin: 0; overflow: hidden; }
     canvas { display: block; }
@@ -14,63 +13,46 @@
 </head>
 <body class="h-screen w-screen flex flex-col justify-between p-4 relative">
 
-  <header class="flex justify-between items-center bg-[#17122b]/90 px-6 py-3 rounded-2xl border border-[#f4f0ff]/10 backdrop-blur-md z-10">
+  <header class="flex justify-between items-center bg-[#17122b]/90 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-md z-10">
     <div class="flex items-center gap-3">
       <div class="w-3 h-3 rounded-full bg-[#ff6b00] animate-ping"></div>
       <div>
-        <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">
+        <h1 class="text-xl font-extrabold bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">
           FÁBRICA DE CONTEÚDOS · ARENA MULTIPLAYER
         </h1>
-        <p class="text-xs text-[#9a93b8]">Superando Desafios de Liderança e Desenvolvimento Humano</p>
+        <p class="text-xs text-[#9a93b8]">Desafios de Liderança e Desenvolvimento Humano</p>
       </div>
     </div>
-    
     <div class="flex items-center gap-6">
-      <div class="text-right">
-        <div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos Conectados</div>
-        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0 / 20</div>
-      </div>
-      <button id="btn-finish" class="px-5 py-2.5 rounded-xl bg-[#ff3d8b] hover:bg-[#ff5d7a] font-extrabold text-sm shadow-lg transition-all">
-        ENCERRAR E VER TOP 3 🏆
-      </button>
+      <div class="text-right"><div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos</div><div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0 / 20</div></div>
+      <button id="btn-finish" class="px-5 py-2.5 rounded-xl bg-[#ff3d8b] hover:bg-[#ff5d7a] font-extrabold text-sm shadow-lg">VER TOP 3 🏆</button>
     </div>
   </header>
 
-  <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-[#f4f0ff]/10 shadow-2xl bg-[#0a0716]">
+  <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#0a0716]">
     <canvas id="arena-canvas" class="w-full h-full"></canvas>
 
     <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center">
-      <h2 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">
-        🏆 PÓDIO DOS CAMPEÕES 🏆
-      </h2>
-      <p class="text-sm text-[#9a93b8] mb-8">Líderes que dominaram os desafios corporativos</p>
+      <h2 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">🏆 PÓDIO DOS CAMPEÕES 🏆</h2>
       <div id="podium-list" class="flex justify-center items-end gap-6 mb-8 w-full max-w-2xl"></div>
-      <button onclick="location.reload()" class="px-8 py-3.5 rounded-xl bg-[#ff6b00] font-extrabold text-lg hover:bg-[#ff8533] transition-all">
-        REINICIAR NOVA PARTIDA
-      </button>
+      <button onclick="location.reload()" class="px-8 py-3.5 rounded-xl bg-[#ff6b00] font-extrabold text-lg">REINICIAR</button>
     </div>
   </main>
 
 <script>
-  var canvas = document.getElementById('arena-canvas');
-  var ctx = canvas.getContext('2d');
-  var W = 0, H = 0;
+  const canvas = document.getElementById('arena-canvas');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
 
-  function resize() {
-    W = canvas.width = canvas.parentElement.clientWidth;
-    H = canvas.height = canvas.parentElement.clientHeight;
-  }
+  function resize() { W = canvas.width = canvas.parentElement.clientWidth; H = canvas.height = canvas.parentElement.clientHeight; }
   window.addEventListener('resize', resize);
   resize();
 
-  const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-  const TOPIC_FROM_CTRL = 'fabrica_conteudos_main_game_arena';
-  const TOPIC_TO_CTRL = 'fabrica_conteudos_main_game_ctrl';
+  const channel = new BroadcastChannel('fabrica_conteudos_channel_v2');
+  let players = {};
+  let bullets = [], enemies = [];
 
-  var players = {};
-  var bullets = [], enemies = [];
-
-  var CORPORATE_TARGETS = [
+  const TARGETS = [
     { title: 'Microgerenciamento', hp: 3, pts: 30, color: '#ff3d8b' },
     { title: 'Falta de Feedback', hp: 2, pts: 20, color: '#ff3d8b' },
     { title: 'Silos Organizacionais', hp: 4, pts: 40, color: '#0055ff' },
@@ -79,95 +61,60 @@
     { title: 'Churn de Clientes', hp: 5, pts: 50, color: '#ff6b00' }
   ];
 
-  client.on('connect', () => {
-    client.subscribe(TOPIC_FROM_CTRL);
-  });
-
-  client.on('message', (topic, message) => {
-    try {
-      var data = JSON.parse(message.toString());
-      if(data.type === 'JOIN') {
-        if(!players[data.player.id]) {
-          players[data.player.id] = {
-            id: data.player.id,
-            name: data.player.name,
-            color: data.player.color,
-            x: Math.random() * (W - 200) + 100,
-            y: H - 100,
-            score: 0,
-            lives: 3,
-            weaponLvl: 1,
-            specialCharge: 0,
-            inputs: {}
-          };
-          document.getElementById('conn-count').textContent = Object.keys(players).length + ' / 20';
-        }
-      } else if(data.type === 'INPUT_START') {
-        if(players[data.playerId]) {
-          players[data.playerId].inputs[data.action] = true;
-          if(data.action === 'SPECIAL' && players[data.playerId].specialCharge >= 100) triggerSpecial(players[data.playerId]);
-        }
-      } else if(data.type === 'INPUT_END') {
-        if(players[data.playerId]) players[data.playerId].inputs[data.action] = false;
+  channel.onmessage = (e) => {
+    let data = e.data;
+    if(data.type === 'JOIN' || data.type === 'INPUT') {
+      if(!players[data.player.id]) {
+        players[data.player.id] = {
+          ...data.player,
+          x: W / 2 + (Math.random() * 100 - 50),
+          y: H - 100,
+          inputs: data.inputs || {}
+        };
+      } else {
+        players[data.player.id].inputs = data.inputs || players[data.player.id].inputs;
       }
-    } catch(e){}
-  });
-
-  function triggerSpecial(p) {
-    p.specialCharge = 0;
-    for(var i = enemies.length - 1; i >= 0; i--) {
-      if(Math.abs(enemies[i].x - p.x) < 80) {
-        p.score += enemies[i].pts;
-        enemies.splice(i, 1);
-      }
+      document.getElementById('conn-count').textContent = Object.keys(players).length + ' / 20';
     }
-    p.weaponLvl = Math.min(4, p.weaponLvl + 1);
-  }
+  };
 
   setInterval(() => {
-    if(enemies.length < 12) {
-      var t = CORPORATE_TARGETS[Math.floor(Math.random() * CORPORATE_TARGETS.length)];
-      enemies.push({ x: Math.random() * (W - 120) + 60, y: -40, vy: Math.random() * 1.5 + 1, title: t.title, hp: t.hp, pts: t.pts, color: t.color });
+    if(enemies.length < 10) {
+      let t = TARGETS[Math.floor(Math.random() * TARGETS.length)];
+      enemies.push({ x: Math.random() * (W - 120) + 60, y: -40, vy: 1.2, ...t });
     }
-  }, 1800);
+  }, 2000);
 
   function update() {
     Object.keys(players).forEach(id => {
-      var p = players[id];
-      var speed = 6;
-      if(p.inputs['LEFT']) p.x = Math.max(40, p.x - speed);
-      if(p.inputs['RIGHT']) p.x = Math.min(W - 40, p.x + speed);
-      if(p.inputs['UP']) p.y = Math.max(40, p.y - speed);
-      if(p.inputs['DOWN']) p.y = Math.min(H - 40, p.y + speed);
+      let p = players[id];
+      let spd = 6;
+      if(p.inputs['LEFT']) p.x = Math.max(30, p.x - spd);
+      if(p.inputs['RIGHT']) p.x = Math.min(W - 30, p.x + spd);
+      if(p.inputs['UP']) p.y = Math.max(30, p.y - spd);
+      if(p.inputs['DOWN']) p.y = Math.min(H - 30, p.y + spd);
 
       if(p.inputs['SHOOT']) {
-        if(!p.lastShoot || Date.now() - p.lastShoot > 180) {
+        if(!p.lastShoot || Date.now() - p.lastShoot > 200) {
           p.lastShoot = Date.now();
-          if(p.weaponLvl === 1) bullets.push({ x: p.x, y: p.y - 20, vy: -10, color: p.color, ownerId: p.id });
-          else {
-            bullets.push({ x: p.x - 10, y: p.y - 15, vy: -10, color: p.color, ownerId: p.id });
-            bullets.push({ x: p.x + 10, y: p.y - 15, vy: -10, color: p.color, ownerId: p.id });
-          }
+          bullets.push({ x: p.x, y: p.y - 20, vy: -12, color: p.color, ownerId: p.id });
         }
       }
 
-      client.publish(TOPIC_TO_CTRL, JSON.stringify({ type: 'SYNC_PLAYER', playerId: p.id, score: p.score, lives: p.lives, weaponLvl: p.weaponLvl, specialCharge: p.specialCharge }));
+      channel.postMessage({ type: 'SYNC', playerId: p.id, score: p.score, lives: p.lives, weaponLvl: p.weaponLvl });
     });
 
-    for(var i = bullets.length - 1; i >= 0; i--) {
-      var b = bullets[i];
+    for(let i = bullets.length - 1; i >= 0; i--) {
+      let b = bullets[i];
       b.y += b.vy;
       if(b.y < -10) { bullets.splice(i, 1); continue; }
-      for(var j = enemies.length - 1; j >= 0; j--) {
-        var e = enemies[j];
-        if(Math.abs(b.x - e.x) < 40 && Math.abs(b.y - e.y) < 20) {
+      for(let j = enemies.length - 1; j >= 0; j--) {
+        let e = enemies[j];
+        if(Math.abs(b.x - e.x) < 45 && Math.abs(b.y - e.y) < 25) {
           e.hp--;
           bullets.splice(i, 1);
           if(e.hp <= 0) {
-            if(players[b.ownerId]) {
-              players[b.ownerId].score += e.pts;
-              players[b.ownerId].specialCharge = Math.min(100, players[b.ownerId].specialCharge + 15);
-            }
+            if(players[b.ownerId]) players[b.ownerId].score += e.pts;
             enemies.splice(j, 1);
           }
           break;
@@ -175,16 +122,14 @@
       }
     }
 
-    for(var i = enemies.length - 1; i >= 0; i--) {
-      var e = enemies[i];
+    for(let i = enemies.length - 1; i >= 0; i--) {
+      let e = enemies[i];
       e.y += e.vy;
-      if(e.y > H + 40) { enemies.splice(i, 1); continue; }
+      if(e.y > H + 30) { enemies.splice(i, 1); continue; }
       Object.keys(players).forEach(id => {
-        var p = players[id];
+        let p = players[id];
         if(Math.abs(e.x - p.x) < 30 && Math.abs(e.y - p.y) < 30) {
           p.lives--;
-          p.score = Math.max(0, p.score - 50);
-          p.weaponLvl = Math.max(1, p.weaponLvl - 1);
           enemies.splice(i, 1);
         }
       });
@@ -193,22 +138,27 @@
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
+    
     enemies.forEach(e => {
       ctx.fillStyle = e.color;
-      ctx.beginPath(); ctx.roundRect(e.x - 50, e.y - 18, 100, 36, 10); ctx.fill();
-      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(e.title, e.x, e.y + 4);
+      ctx.beginPath(); ctx.roundRect(e.x - 55, e.y - 18, 110, 36, 10); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(e.title, e.x, e.y + 4);
     });
 
-    bullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x - 2, b.y - 6, 4, 12); });
+    bullets.forEach(b => {
+      ctx.fillStyle = b.color;
+      ctx.fillRect(b.x - 2, b.y - 8, 4, 16);
+    });
 
     Object.keys(players).forEach(id => {
-      var p = players[id];
+      let p = players[id];
       ctx.save();
       ctx.translate(p.x, p.y);
-      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.name, 0, -28);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(p.name, 0, -28);
       ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(15, 12); ctx.lineTo(-15, 12); ctx.closePath(); ctx.fill();
-      if(p.weaponLvl >= 2) { ctx.fillRect(-22, 2, 8, 12); ctx.fillRect(14, 2, 8, 12); }
+      ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(16, 14); ctx.lineTo(-16, 14); ctx.closePath(); ctx.fill();
       ctx.restore();
     });
   }
@@ -216,15 +166,15 @@
   function loop() { update(); draw(); requestAnimationFrame(loop); }
   loop();
 
-  document.getElementById('btn-finish').addEventListener('click', function() {
-    var podiumList = document.getElementById('podium-list');
-    podiumList.innerHTML = '';
-    var sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
-    sorted.forEach((p, index) => {
-      var card = document.createElement('div');
-      card.className = `flex-1 bg-[#17122b] p-4 rounded-2xl border border-[#f4f0ff]/10 flex flex-col justify-end items-center h-36`;
-      card.innerHTML = `<div class="font-extrabold text-lg text-white mb-1" style="color:${p.color}">${p.name}</div><div class="text-2xl font-black text-[#3dd6ff]">${p.score} pts</div>`;
-      podiumList.appendChild(card);
+  document.getElementById('btn-finish').addEventListener('click', () => {
+    let list = document.getElementById('podium-list');
+    list.innerHTML = '';
+    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
+    sorted.forEach(p => {
+      let card = document.createElement('div');
+      card.className = 'flex-1 bg-[#17122b] p-4 rounded-2xl border border-white/10 flex flex-col justify-end items-center h-36';
+      card.innerHTML = `<div class="font-extrabold text-lg" style="color:${p.color}">${p.name}</div><div class="text-2xl font-black text-[#3dd6ff]">${p.score} pts</div>`;
+      list.appendChild(card);
     });
     document.getElementById('podium-modal').classList.remove('hidden');
   });
