@@ -159,4 +159,72 @@
         
         if(data.type === 'EVENT') {
           if(data.event === 'HIT') { vibrate([150, 50, 150]); playBeep(150, 'sawtooth', 0.4); } 
-          if(data.
+          if(data.event === 'KILL') { vibrate(20); playBeep(900, 'square', 0.05); } 
+          if(data.event === 'POWERUP') { vibrate([50, 50, 50, 50, 150]); playPowerUpSound(); } 
+        }
+      });
+      conn.on('error', err => { document.getElementById('conn-status').textContent='Erro ao conectar.'; document.getElementById('btn-enter').disabled=false; document.getElementById('btn-enter').classList.remove('opacity-50'); });
+    });
+  });
+
+  // CONTROLES DE MOUSE/TOUCH
+  function bind(id, action) {
+    let el = document.getElementById(id);
+    let send = (state) => {
+      if(player.inputs[action] === state) return; player.inputs[action] = state;
+      if(state) { if(action === 'SHOOT' && audioCtx) { vibrate(15); playBeep(800, 'triangle', 0.05); } else vibrate(10); } 
+      if(conn && conn.open) conn.send({ type:'INPUT', playerId:player.id, inputs:player.inputs });
+    };
+    el.addEventListener('touchstart',(e)=>{e.preventDefault();send(true);},{passive:false}); el.addEventListener('touchend',(e)=>{e.preventDefault();send(false);},{passive:false});
+    el.addEventListener('mousedown',(e)=>{e.preventDefault();send(true);}); el.addEventListener('mouseup',(e)=>{e.preventDefault();send(false);}); el.addEventListener('mouseleave',(e)=>{e.preventDefault();send(false);});
+  }
+  bind('btn-up','UP'); bind('btn-down','DOWN'); bind('btn-left','LEFT'); bind('btn-right','RIGHT'); bind('btn-a','SHOOT'); bind('btn-y','SPECIAL');
+
+  // CONTROLES VIA TECLADO FÍSICO DO COMPUTADOR
+  const keyMap = {
+    'ArrowUp': 'UP', 'w': 'UP', 'W': 'UP',
+    'ArrowDown': 'DOWN', 's': 'DOWN', 'S': 'DOWN',
+    'ArrowLeft': 'LEFT', 'a': 'LEFT', 'A': 'LEFT',
+    'ArrowRight': 'RIGHT', 'd': 'RIGHT', 'D': 'RIGHT',
+    ' ': 'SHOOT', // Espaço atira
+    'Shift': 'SPECIAL', 'e': 'SPECIAL', 'E': 'SPECIAL'
+  };
+  const btnMapId = {'UP':'btn-up', 'DOWN':'btn-down', 'LEFT':'btn-left', 'RIGHT':'btn-right', 'SHOOT':'btn-a', 'SPECIAL':'btn-y'};
+
+  window.addEventListener('keydown', (e) => {
+    // Permite pressionar Enter para logar rapidamente
+    if(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+      if(e.key === 'Enter') document.getElementById('btn-enter').click();
+      return;
+    }
+
+    let action = keyMap[e.key];
+    if(action) {
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); // Evita rolar a página
+      
+      if(player.inputs[action] !== true) {
+        player.inputs[action] = true;
+        if(action === 'SHOOT' && audioCtx) { vibrate(15); playBeep(800, 'triangle', 0.05); } 
+        if(conn && conn.open) conn.send({ type:'INPUT', playerId:player.id, inputs:player.inputs });
+        
+        // Efeito visual no botão pressionado via teclado
+        if(btnMapId[action]) document.getElementById(btnMapId[action]).classList.add('active-key');
+      }
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    
+    let action = keyMap[e.key];
+    if(action) {
+      player.inputs[action] = false;
+      if(conn && conn.open) conn.send({ type:'INPUT', playerId:player.id, inputs:player.inputs });
+      
+      // Remove o efeito visual do botão
+      if(btnMapId[action]) document.getElementById(btnMapId[action]).classList.remove('active-key');
+    }
+  });
+</script>
+</body>
+</html>
