@@ -2,309 +2,156 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arena Principal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Controle de Voo</title>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
   <style>
-    body { background: #0d0a1a; color: #f4f0ff; font-family: 'Bricolage Grotesque', sans-serif; margin: 0; overflow: hidden; }
-    canvas { display: block; }
-    @keyframes slideUpFade { from { opacity: 0; transform: translateY(100px) scale(0.8); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    .podium-card { animation: slideUpFade 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; }
-    .delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.6s; } .delay-3 { animation-delay: 1.0s; }
+    :root { --bg: #0d0a1a; --text: #f4f0ff; }
+    body { background: var(--bg); color: var(--text); font-family: 'Bricolage Grotesque', sans-serif; touch-action: none; user-select: none; overflow: hidden; }
+    .gamepad-btn { transition: transform 0.05s ease, filter 0.1s ease; box-shadow: 0 6px 0px rgba(0,0,0,0.6); }
+    .gamepad-btn:active { transform: translateY(4px) scale(0.95) !important; box-shadow: 0 2px 0px rgba(0,0,0,0.6); filter: brightness(1.3); }
+    input { text-transform: uppercase; }
   </style>
 </head>
-<body class="h-screen w-screen flex flex-col justify-between p-4 relative">
+<body class="h-screen w-screen flex flex-col justify-between p-4">
 
-  <div id="start-overlay" class="absolute inset-0 bg-[#0d0a1a] z-[60] flex flex-col items-center justify-center">
-    <button id="btn-start-server" class="px-8 py-5 rounded-2xl bg-gradient-to-r from-[#ff6b00] to-[#ffb700] text-[#0d0a1a] font-black text-2xl shadow-[0_0_30px_rgba(255,107,0,0.5)] hover:scale-105 transition-all">
-      INICIAR PARTIDA (3 MINUTOS) 🚀
-    </button>
+  <!-- TELA DE LOGIN -->
+  <div id="screen-login" class="fixed inset-0 bg-[#0d0a1a] z-50 flex flex-col justify-center items-center p-6 text-center overflow-y-auto">
+    <div class="mb-2 inline-block px-3 py-1 rounded-full bg-amber-500/10 text-[#ffb700] border border-[#ffb700]/30 text-xs font-bold uppercase">Conectar à Arena</div>
+    <h1 class="text-3xl font-extrabold mb-1 bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent">Prepare sua Nave</h1>
+    <p class="text-sm text-[#9a93b8] mb-6">Olhe para a tela da TV e digite o Código da Sala</p>
+    <div class="w-full max-w-xs space-y-4">
+      <input id="input-room" type="text" placeholder="CÓDIGO (4 LETRAS)" maxlength="4" class="w-full px-4 py-4 rounded-xl bg-[#251e42] border-2 border-[#0055ff] text-white font-black text-center text-xl focus:outline-none placeholder:text-sm placeholder:font-semibold">
+      <input id="input-name" type="text" placeholder="SEU NOME / APELIDO" maxlength="12" class="w-full px-4 py-3 rounded-xl bg-[#17122b] border border-white/20 text-white font-bold text-center text-lg focus:outline-none focus:border-[#ff6b00]">
+      <div class="grid grid-cols-3 gap-2 mt-4">
+        <button onclick="selectModel('fighter', this)" class="model-btn p-3 rounded-xl bg-[#17122b] border-2 border-[#ff6b00] flex flex-col items-center justify-center"><div class="text-xs font-bold text-[#ff6b00] mb-1">Ágil</div><div class="text-2xl">✈️</div></button>
+        <button onclick="selectModel('heavy', this)" class="model-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex flex-col items-center justify-center"><div class="text-xs font-bold text-[#0055ff] mb-1">Pesado</div><div class="text-2xl">🚀</div></button>
+        <button onclick="selectModel('stealth', this)" class="model-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex flex-col items-center justify-center"><div class="text-xs font-bold text-[#4ade80] mb-1">Furtivo</div><div class="text-2xl">🛸</div></button>
+      </div>
+      <div class="flex justify-center gap-4 py-2">
+        <button onclick="selectColor('#ff6b00', this)" class="skin-btn w-10 h-10 rounded-full bg-[#ff6b00] border-4 border-white shadow-[0_0_10px_#ff6b00]"></button>
+        <button onclick="selectColor('#ffb700', this)" class="skin-btn w-10 h-10 rounded-full bg-[#ffb700] border-4 border-transparent"></button>
+        <button onclick="selectColor('#0055ff', this)" class="skin-btn w-10 h-10 rounded-full bg-[#0055ff] border-4 border-transparent"></button>
+        <button onclick="selectColor('#4ade80', this)" class="skin-btn w-10 h-10 rounded-full bg-[#4ade80] border-4 border-transparent"></button>
+      </div>
+      <button id="btn-enter" class="w-full py-4 mt-2 rounded-xl bg-gradient-to-r from-[#ff6b00] to-[#ffb700] text-[#0d0a1a] font-extrabold text-lg shadow-lg hover:brightness-110 active:scale-95 transition-all">CONECTAR AGORA ⚡</button>
+      <div id="conn-status" class="text-sm font-bold text-[#ffb700] h-6"></div>
+    </div>
   </div>
 
-  <header class="flex justify-between items-center bg-[#17122b]/90 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-md z-10">
-    <div class="flex items-center gap-4">
-      <div id="status-dot" class="w-4 h-4 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(255,0,0,0.8)]"></div>
-      <div>
-        <h1 class="text-xl font-extrabold bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent">ARENA FÁBRICA DE CONTEÚDOS</h1>
-        <p id="room-status" class="text-xs text-[#9a93b8]">Aguardando inicialização...</p>
+  <!-- STATUS EM JOGO -->
+  <header class="flex justify-between items-center bg-[#17122b]/90 p-4 rounded-2xl border border-white/10 backdrop-blur-md">
+    <div>
+      <div id="p-name" class="font-black text-lg uppercase tracking-wide">PILOTO</div>
+      <div id="p-status" class="text-[10px] text-[#4ade80] font-bold uppercase flex items-center gap-1">
+        <div class="w-2 h-2 rounded-full bg-[#4ade80] animate-pulse"></div> Conectado
       </div>
     </div>
-    
-    <!-- TEMPORIZADOR DE PARTIDA -->
-    <div class="text-center bg-black/40 px-6 py-2 rounded-xl border border-white/10 shadow-inner">
-      <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1 tracking-widest">Tempo Restante</div>
-      <div id="game-timer" class="text-4xl font-black text-[#4ade80] tracking-widest" style="text-shadow: 0 0 10px rgba(74,222,128,0.5);">03:00</div>
-    </div>
-
-    <div class="flex items-center gap-6">
-      <div class="text-center bg-[#251e42] px-4 py-2 rounded-xl border border-white/10">
-        <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1">CÓDIGO DE ACESSO</div>
-        <div id="room-code-display" class="text-3xl font-black text-white tracking-widest">----</div>
-      </div>
-      <div class="text-right">
-        <div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos</div>
-        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0/20</div>
-      </div>
+    <div class="flex items-center gap-4 text-right">
+      <!-- MOSTRADOR DE ARMA -->
+      <div><div class="text-[10px] text-[#9a93b8] uppercase font-bold">Arma</div><div id="p-weapon" class="text-sm font-black text-[#ffb700]">LVL 1</div></div>
+      <div><div class="text-[10px] text-[#9a93b8] uppercase font-bold">Pontos</div><div id="p-score" class="font-extrabold text-2xl text-[#3dd6ff]">0</div></div>
+      <div><div class="text-[10px] text-[#9a93b8] uppercase font-bold">Casco</div><div id="p-lives" class="text-lg tracking-widest text-[#ffb700]">❤️❤️❤️</div></div>
     </div>
   </header>
 
-  <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#05030a]">
-    <canvas id="arena-canvas" class="w-full h-full"></canvas>
-
-    <!-- TELA DE PÓDIO ANIMADA -->
-    <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md">
-      <h2 class="text-6xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent animate-pulse">FIM DE JOGO!</h2>
-      <p class="text-[#9a93b8] mb-12 font-bold tracking-widest uppercase text-sm">Ranking Oficial de Liderança</p>
-      <div id="podium-list" class="flex justify-center items-end gap-6 mb-12 w-full max-w-5xl"></div>
-      <button onclick="location.reload()" class="px-10 py-5 rounded-2xl bg-[#ff6b00] text-white hover:bg-[#ff8533] font-black text-xl transition-all shadow-[0_0_20px_rgba(255,107,0,0.5)]">JOGAR NOVAMENTE</button>
+  <!-- CONTROLES -->
+  <div class="flex-1 grid grid-cols-2 gap-4 items-center justify-between my-auto px-2">
+    <!-- D-PAD -->
+    <div class="flex justify-start items-center pl-2">
+      <div class="relative w-48 h-48 bg-[#17122b] rounded-full p-2 border border-white/10 shadow-2xl flex items-center justify-center">
+        <div class="absolute inset-0 rounded-full shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] pointer-events-none"></div>
+        <button id="btn-up" class="gamepad-btn absolute top-1 w-14 h-16 bg-[#251e42] rounded-t-2xl text-xl text-white/50 border-t border-white/10">▲</button>
+        <button id="btn-down" class="gamepad-btn absolute bottom-1 w-14 h-16 bg-[#251e42] rounded-b-2xl text-xl text-white/50 border-b border-white/10">▼</button>
+        <button id="btn-left" class="gamepad-btn absolute left-1 h-14 w-16 bg-[#251e42] rounded-l-2xl text-xl text-white/50 border-l border-white/10">◀</button>
+        <button id="btn-right" class="gamepad-btn absolute right-1 h-14 w-16 bg-[#251e42] rounded-r-2xl text-xl text-white/50 border-r border-white/10">▶</button>
+        <div class="w-12 h-12 bg-[#05030a] rounded-full border border-white/5 z-10"></div>
+      </div>
     </div>
-  </main>
+    <!-- BOTÕES -->
+    <div class="flex justify-end items-center pr-2">
+      <div class="relative w-48 h-48 rounded-full flex items-center justify-center transform rotate-12">
+        <button id="btn-y" class="gamepad-btn absolute top-2 w-16 h-16 rounded-full bg-[#ffb700] text-[#0d0a1a] font-black text-sm">Y<br><span class="text-[9px]">ULT</span></button>
+        <button id="btn-a" class="gamepad-btn absolute bottom-2 w-16 h-16 rounded-full bg-[#4ade80] text-[#0d0a1a] font-black text-sm">A<br><span class="text-[9px]">TIRO</span></button>
+        <button id="btn-x" class="gamepad-btn absolute left-2 w-16 h-16 rounded-full bg-[#0055ff] text-white font-black text-sm">X<br><span class="text-[9px]">DEF</span></button>
+        <button id="btn-b" class="gamepad-btn absolute right-2 w-16 h-16 rounded-full bg-[#ff6b00] text-white font-black text-sm">B<br><span class="text-[9px]">BOMB</span></button>
+      </div>
+    </div>
+  </div>
 
 <script>
-  let audioCtx;
-  function playNoise(duration, vol, freq=800) {
-    if(!audioCtx) return; let bufferSize=audioCtx.sampleRate*duration; let buffer=audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
-    let data=buffer.getChannelData(0); for(let i=0;i<bufferSize;i++) data[i]=Math.random()*2-1;
-    let noise=audioCtx.createBufferSource(); noise.buffer=buffer; let filter=audioCtx.createBiquadFilter(); filter.type='lowpass'; filter.frequency.value=freq;
-    let gain=audioCtx.createGain(); gain.gain.setValueAtTime(vol,audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+duration);
-    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination); noise.start();
-  }
-  function playLaser(freq, duration, vol) {
-    if(!audioCtx) return; let osc=audioCtx.createOscillator(); let gain=audioCtx.createGain(); osc.type='square';
-    osc.frequency.setValueAtTime(freq,audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(freq/2,audioCtx.currentTime+duration);
-    gain.gain.setValueAtTime(vol,audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+duration);
+  let player = { id: 'p_'+Math.random().toString(36).substr(2,9), name: 'Piloto', color: '#ff6b00', model: 'fighter', inputs: {} };
+  let peer, conn, audioCtx;
+
+  // Haptics e Áudios Especiais do Controle
+  function vibrate(ms) { if(navigator.vibrate) navigator.vibrate(ms); }
+  
+  function playBeep(freq, type, duration) {
+    if(!audioCtx) return; let osc=audioCtx.createOscillator(); osc.type=type; osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+    let gain=audioCtx.createGain(); gain.gain.setValueAtTime(0.3,audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+duration);
     osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime+duration);
   }
 
-  const canvas = document.getElementById('arena-canvas'); const ctx = canvas.getContext('2d');
-  let W=0, H=0, stars=[];
-  function resize() { W=canvas.width=canvas.parentElement.clientWidth; H=canvas.height=canvas.parentElement.clientHeight; 
-    stars=Array.from({length: 150}, ()=>({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2+0.5, v: Math.random()*1+0.5})); }
-  window.addEventListener('resize', resize); resize();
+  function playPowerUpSound() {
+    playBeep(400, 'sine', 0.1); setTimeout(()=>playBeep(600, 'sine', 0.1), 100); setTimeout(()=>playBeep(800, 'sine', 0.3), 200);
+  }
 
-  let players={}, connections={}, bullets=[], enemies=[], particles=[], floatTexts=[];
-  let gameActive = false; let gameTime = 180; let screenShake = 0;
+  function selectModel(model, btn) { player.model=model; vibrate(15); playBeep(600,'triangle',0.1); document.querySelectorAll('.model-btn').forEach(b=>b.classList.replace('border-[#ff6b00]','border-transparent')); btn.classList.replace('border-transparent','border-[#ff6b00]'); }
+  function selectColor(color, btn) { player.color=color; vibrate(15); playBeep(600,'triangle',0.1); document.querySelectorAll('.skin-btn').forEach(b=>{b.classList.replace('border-white','border-transparent');b.style.boxShadow='none';}); btn.classList.replace('border-transparent','border-white'); btn.style.boxShadow=`0 0 10px ${color}`; }
 
-  const TARGETS = [
-    { title: 'Microgerenciamento', hp: 3, pts: 30, color: '#ffb700' },
-    { title: 'Silos Organizacionais', hp: 4, pts: 40, color: '#0055ff' },
-    { title: 'Processos Engessados', hp: 3, pts: 30, color: '#0055ff' },
-    { title: 'Dívida Técnica', hp: 2, pts: 25, color: '#ff6b00' },
-    { title: 'Churn de Clientes', hp: 5, pts: 50, color: '#ff6b00' }
-  ];
-
-  document.getElementById('btn-start-server').addEventListener('click', () => {
-    document.getElementById('start-overlay').style.display = 'none';
+  document.getElementById('btn-enter').addEventListener('click', () => {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume();
-    const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-    document.getElementById('room-code-display').textContent = roomCode;
-    const peer = new Peer('fabrica-' + roomCode);
+    vibrate(30); playBeep(800,'triangle',0.1);
+    let roomVal = document.getElementById('input-room').value.trim().toUpperCase(); let nameVal = document.getElementById('input-name').value.trim();
+    if(roomVal.length!==4){ document.getElementById('conn-status').textContent='Código de 4 letras inválido.'; return; }
+    if(nameVal) player.name = nameVal;
+    
+    document.getElementById('conn-status').textContent='Conectando...'; document.getElementById('btn-enter').disabled=true; document.getElementById('btn-enter').classList.add('opacity-50');
 
+    peer = new Peer();
     peer.on('open', () => {
-      document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-[#4ade80]');
-      document.getElementById('room-status').textContent = 'Partida Pronta!';
-      gameActive = true; setInterval(updateTimer, 1000); // Inicia Temporizador
-    });
-
-    peer.on('connection', (conn) => {
-      conn.on('data', (data) => {
-        if(data.type === 'JOIN') {
-          playLaser(800, 0.5, 0.1);
-          players[data.player.id] = { ...data.player, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0 };
-          connections[data.player.id] = conn; document.getElementById('conn-count').textContent = Object.keys(players).length+'/20';
-        }
-        if(data.type === 'INPUT' && players[data.playerId]) players[data.playerId].inputs = data.inputs;
+      conn = peer.connect('fabrica-'+roomVal, { reliable: false });
+      conn.on('open', () => {
+        document.getElementById('screen-login').style.display='none'; document.getElementById('p-name').textContent=player.name; document.getElementById('p-name').style.color=player.color;
+        conn.send({ type:'JOIN', player:player }); vibrate([50,50,50]);
       });
-      conn.on('close', () => { const id = Object.keys(connections).find(k=>connections[k]===conn); if(id){delete players[id]; delete connections[id];} });
+      conn.on('data', (data) => {
+        if(data.type === 'SYNC') {
+          document.getElementById('p-score').textContent = data.score;
+          document.getElementById('p-weapon').textContent = 'LVL ' + (data.weaponLvl || 1);
+          if(data.weaponLvl >= 4) document.getElementById('p-weapon').classList.replace('text-[#ffb700]', 'text-[#ff3d8b]');
+          else document.getElementById('p-weapon').classList.replace('text-[#ff3d8b]', 'text-[#ffb700]');
+
+          if(data.lives <= 0) {
+            document.getElementById('p-lives').textContent = 'DESTRUÍDO 💀';
+            document.getElementById('p-status').innerHTML = '<div class="w-2 h-2 rounded-full bg-red-500"></div> Game Over'; document.getElementById('p-status').classList.replace('text-[#4ade80]','text-red-500');
+          } else document.getElementById('p-lives').textContent = '❤️'.repeat(data.lives);
+        }
+        
+        // EVENTOS ESPECIAIS (Feedback Físico)
+        if(data.type === 'EVENT') {
+          if(data.event === 'HIT') { vibrate([150, 50, 150]); playBeep(150, 'sawtooth', 0.4); } // Sofreu dano = Vibração pesada
+          if(data.event === 'KILL') { vibrate(20); playBeep(900, 'square', 0.05); } // Destruiu desafio = vibração leve e clique de satisfação
+          if(data.event === 'POWERUP') { vibrate([50, 50, 50, 50, 150]); playPowerUpSound(); } // Upou de nível = Vibração e som de sucesso
+        }
+      });
+      conn.on('error', err => { document.getElementById('conn-status').textContent='Erro ao conectar.'; document.getElementById('btn-enter').disabled=false; document.getElementById('btn-enter').classList.remove('opacity-50'); });
     });
-
-    setInterval(() => {
-      if(gameActive && enemies.length < 8 + Object.keys(players).length*2) {
-        let t = TARGETS[Math.floor(Math.random()*TARGETS.length)];
-        enemies.push({ x: Math.random()*(W-140)+70, y: -50, vy: 1.0+Math.random()*1.5, ...t, maxHp: t.hp });
-      }
-    }, 1200);
-
-    requestAnimationFrame(loop);
   });
 
-  function updateTimer() {
-    if(!gameActive) return;
-    gameTime--;
-    let m = Math.floor(gameTime/60).toString().padStart(2,'0'); let s = (gameTime%60).toString().padStart(2,'0');
-    let tEl = document.getElementById('game-timer'); tEl.textContent = `${m}:${s}`;
-    if(gameTime <= 30) tEl.classList.replace('text-[#4ade80]', 'text-red-500'); // Fica vermelho nos 30s finais
-    
-    if(gameTime <= 0) { gameActive = false; showPodium(); }
+  function bind(id, action) {
+    let el = document.getElementById(id);
+    let send = (state) => {
+      if(player.inputs[action] === state) return; player.inputs[action] = state;
+      if(state) { if(action === 'SHOOT') { vibrate(15); playBeep(800, 'triangle', 0.05); } else vibrate(10); } 
+      if(conn && conn.open) conn.send({ type:'INPUT', playerId:player.id, inputs:player.inputs });
+    };
+    el.addEventListener('touchstart',(e)=>{e.preventDefault();send(true);},{passive:false}); el.addEventListener('touchend',(e)=>{e.preventDefault();send(false);},{passive:false});
+    el.addEventListener('mousedown',(e)=>{e.preventDefault();send(true);}); el.addEventListener('mouseup',(e)=>{e.preventDefault();send(false);}); el.addEventListener('mouseleave',(e)=>{e.preventDefault();send(false);});
   }
-
-  function showPodium() {
-    let list = document.getElementById('podium-list'); list.innerHTML = '';
-    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
-    
-    // Rearranja para o 1º lugar ficar no centro (Ordem visual: 2º, 1º, 3º)
-    let displayOrder = [];
-    if(sorted[1]) displayOrder.push({p: sorted[1], pos: 2, delay: 'delay-2', height: 'h-64'});
-    if(sorted[0]) displayOrder.push({p: sorted[0], pos: 1, delay: 'delay-1', height: 'h-80', extra: 'scale-110 z-10 shadow-[0_0_40px_rgba(255,183,0,0.4)]'});
-    if(sorted[2]) displayOrder.push({p: sorted[2], pos: 3, delay: 'delay-3', height: 'h-52'});
-
-    displayOrder.forEach((item) => {
-      let medals = {1:'🥇 CAMPEÃO', 2:'🥈 2º LUGAR', 3:'🥉 3º LUGAR'};
-      let card = document.createElement('div');
-      card.className = `podium-card ${item.delay} flex-1 bg-[#17122b] p-6 rounded-t-3xl border border-white/10 flex flex-col justify-end items-center ${item.height} relative overflow-hidden ${item.extra||''}`;
-      card.innerHTML = `
-        <div class="absolute top-0 w-full h-3" style="background:${item.p.color}"></div>
-        <div class="text-sm font-black text-white/60 mb-auto mt-4 tracking-widest">${medals[item.pos]}</div>
-        <div class="font-black text-4xl uppercase mb-1" style="color:${item.p.color}">${item.p.name}</div>
-        <div class="text-5xl font-black text-white">${item.p.score} <span class="text-lg text-[#9a93b8]">pts</span></div>
-      `;
-      list.appendChild(card);
-    });
-    document.getElementById('podium-modal').classList.remove('hidden');
-  }
-
-  function spawnParticles(x, y, color) { for(let i=0; i<25; i++) particles.push({ x,y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, life:1.0, color }); }
-  function spawnText(x, y, text, color) { floatTexts.push({x, y, text, color, life: 1.0, vy: -1.5}); }
-
-  function update() {
-    stars.forEach(s => { s.y += s.v; if(s.y > H) s.y = 0; });
-    if(!gameActive) return;
-
-    Object.keys(players).forEach(id => {
-      let p = players[id]; if(p.lives <= 0) return;
-      if(p.invuln > 0) p.invuln--;
-
-      let accel=0.8, friction=0.85, maxSpd=(p.model==='fighter')?9:(p.model==='heavy')?5:7;
-      if(p.inputs['LEFT']) p.vx-=accel; if(p.inputs['RIGHT']) p.vx+=accel; if(p.inputs['UP']) p.vy-=accel; if(p.inputs['DOWN']) p.vy+=accel;
-      p.vx*=friction; p.vy*=friction; p.x=Math.max(40,Math.min(W-40,p.x+p.vx)); p.y=Math.max(40,Math.min(H-40,p.y+p.vy));
-
-      // LÓGICA DE TIRO (BASEADA NO WEAPON LEVEL)
-      if(p.inputs['SHOOT']) {
-        let fireRate = p.weaponLvl >= 4 ? 100 : 150; // Lvl máximo atira mais rápido
-        if(Date.now() - p.lastShoot > fireRate) {
-          p.lastShoot = Date.now();
-          playLaser(p.weaponLvl*200 + 400, 0.1, 0.05); // Som muda com o level
-          
-          let w = p.weaponLvl || 1;
-          if(w === 1) { bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); }
-          else if(w === 2) { 
-            bullets.push({ x:p.x-10, y:p.y-25, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); 
-            bullets.push({ x:p.x+10, y:p.y-25, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); 
-          }
-          else if(w === 3) {
-            bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
-            bullets.push({ x:p.x-15, y:p.y-25, vx:-2, vy:-13, color:p.color, ownerId:p.id, dmg:1 });
-            bullets.push({ x:p.x+15, y:p.y-25, vx:2, vy:-13, color:p.color, ownerId:p.id, dmg:1 });
-          }
-          else { // LVL 4 MÁXIMO
-            bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-16, color:'#ffffff', ownerId:p.id, dmg:2 });
-            bullets.push({ x:p.x-15, y:p.y-25, vx:-3, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
-            bullets.push({ x:p.x+15, y:p.y-25, vx:3, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
-          }
-        }
-      }
-      if(connections[id]) connections[id].send({ type:'SYNC', score:p.score, lives:p.lives, weaponLvl:p.weaponLvl });
-    });
-
-    for(let i=particles.length-1; i>=0; i--) { let pt=particles[i]; pt.x+=pt.vx; pt.y+=pt.vy; pt.life-=0.04; if(pt.life<=0) particles.splice(i,1); }
-    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.02; if(ft.life<=0) floatTexts.splice(i,1); }
-
-    for(let i=bullets.length-1; i>=0; i--) {
-      let b=bullets[i]; b.x+=b.vx; b.y+=b.vy; if(b.y < -20) { bullets.splice(i,1); continue; }
-      for(let j=enemies.length-1; j>=0; j--) {
-        let e=enemies[j];
-        if(Math.abs(b.x-e.x)<55 && Math.abs(b.y-e.y)<25) {
-          e.hp-=b.dmg; bullets.splice(i,1); spawnParticles(b.x,b.y,b.color);
-          if(e.hp<=0) {
-            playNoise(0.3, 0.15, 400); spawnParticles(e.x,e.y,e.color); screenShake=8;
-            
-            // SISTEMA DE EVOLUÇÃO (LEVEL UP)
-            let shooter = players[b.ownerId];
-            if(shooter) {
-              shooter.score += e.pts; shooter.kills = (shooter.kills||0) + 1;
-              spawnText(e.x, e.y, `+${e.pts}`, '#3dd6ff');
-              
-              let oldLvl = shooter.weaponLvl;
-              if(shooter.kills >= 15) shooter.weaponLvl = 4;
-              else if(shooter.kills >= 7) shooter.weaponLvl = 3;
-              else if(shooter.kills >= 3) shooter.weaponLvl = 2;
-
-              if(shooter.weaponLvl > oldLvl) {
-                spawnText(shooter.x, shooter.y-50, '⚡ LEVEL UP ⚡', '#ffb700');
-                if(connections[shooter.id]) connections[shooter.id].send({type:'EVENT', event:'POWERUP'});
-              } else {
-                if(connections[shooter.id]) connections[shooter.id].send({type:'EVENT', event:'KILL'});
-              }
-            }
-            enemies.splice(j,1);
-          } break;
-        }
-      }
-    }
-
-    for(let i=enemies.length-1; i>=0; i--) {
-      let e=enemies[i]; e.y+=e.vy; if(e.y>H+50){enemies.splice(i,1); continue;}
-      Object.keys(players).forEach(id => {
-        let p=players[id];
-        // DANO AO JOGADOR -> PERDE LEVEL DA ARMA
-        if(p.lives>0 && p.invuln<=0 && Math.abs(e.x-p.x)<45 && Math.abs(e.y-p.y)<35) {
-          p.lives--; p.weaponLvl=1; p.kills=0; p.invuln=120; // Zera arma e fica imune
-          playNoise(0.6, 0.3, 200); spawnParticles(p.x,p.y,'#ff0000'); screenShake=25; // Tremor forte
-          spawnText(p.x, p.y-30, 'PUNIDO!', '#ff0000');
-          enemies.splice(i,1);
-          if(connections[id]) connections[id].send({type:'EVENT', event:'HIT'});
-        }
-      });
-    }
-  }
-
-  function draw() {
-    ctx.clearRect(0,0,W,H);
-    ctx.fillStyle='#ffffff'; stars.forEach(s=>{ctx.globalAlpha=s.v/2; ctx.fillRect(s.x,s.y,s.s,s.s);}); ctx.globalAlpha=1.0;
-
-    ctx.save();
-    if(screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); screenShake*=0.85; if(screenShake<0.5) screenShake=0; }
-
-    enemies.forEach(e=>{
-      ctx.fillStyle='#333'; ctx.fillRect(e.x-55,e.y+22,110,4); ctx.fillStyle='#4ade80'; ctx.fillRect(e.x-55,e.y+22,110*(e.hp/e.maxHp),4);
-      ctx.fillStyle=e.color; ctx.shadowColor=e.color; ctx.shadowBlur=10; ctx.beginPath(); ctx.roundRect(e.x-55,e.y-18,110,36,6); ctx.fill(); ctx.shadowBlur=0; 
-      ctx.fillStyle='#0d0a1a'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(e.title,e.x,e.y);
-    });
-
-    particles.forEach(pt=>{ ctx.globalAlpha=Math.max(0,pt.life); ctx.fillStyle=pt.color; ctx.beginPath(); ctx.arc(pt.x,pt.y,4*pt.life,0,Math.PI*2); ctx.fill(); }); ctx.globalAlpha=1.0;
-    
-    bullets.forEach(b=>{ ctx.fillStyle=b.color; ctx.shadowColor=b.color; ctx.shadowBlur=10; ctx.fillRect(b.x-2,b.y-8,4,16); ctx.shadowBlur=0; });
-
-    Object.keys(players).forEach(id=>{
-      let p=players[id]; if(p.lives<=0) return;
-      if(p.invuln>0 && Math.floor(Date.now()/100)%2===0) return;
-      ctx.save(); ctx.translate(p.x,p.y);
-      ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name,0,-45);
-      ctx.fillStyle='#ffb700'; ctx.font='11px sans-serif'; ctx.fillText(p.score+' pts',0,45);
-      
-      // Aura se tiver Weapon Lvl Alto
-      if(p.weaponLvl >= 3) {
-        ctx.strokeStyle=p.color; ctx.globalAlpha=0.3; ctx.beginPath(); ctx.arc(0,0,30,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1.0;
-      }
-
-      ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=15; ctx.rotate((p.vx*2)*Math.PI/180); ctx.scale(1.3,1.3);
-      if(p.model==='fighter'){ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(14,14);ctx.lineTo(0,8);ctx.lineTo(-14,14);ctx.closePath();ctx.fill();}
-      else if(p.model==='heavy'){ctx.beginPath();ctx.moveTo(0,-18);ctx.lineTo(24,10);ctx.lineTo(8,16);ctx.lineTo(-8,16);ctx.lineTo(-24,10);ctx.closePath();ctx.fill();}
-      else{ctx.beginPath();ctx.moveTo(0,-20);ctx.lineTo(18,12);ctx.lineTo(0,-2);ctx.lineTo(-18,12);ctx.closePath();ctx.fill();}
-      ctx.restore();
-    });
-
-    floatTexts.forEach(ft => {
-      ctx.globalAlpha = Math.max(0, ft.life);
-      ctx.fillStyle = ft.color; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(ft.text, ft.x, ft.y);
-    }); ctx.globalAlpha = 1.0;
-
-    ctx.restore(); // Fim do Screen Shake
-  }
-  function loop() { update(); draw(); requestAnimationFrame(loop); }
+  bind('btn-up','UP'); bind('btn-down','DOWN'); bind('btn-left','LEFT'); bind('btn-right','RIGHT'); bind('btn-a','SHOOT'); bind('btn-y','SPECIAL');
 </script>
 </body>
 </html>
