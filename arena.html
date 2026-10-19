@@ -19,7 +19,7 @@
 
   <div id="start-overlay" class="absolute inset-0 bg-[#0d0a1a] z-[60] flex flex-col items-center justify-center">
     <button id="btn-start-server" class="px-8 py-5 rounded-2xl bg-gradient-to-r from-[#ff6b00] to-[#ffb700] text-[#0d0a1a] font-black text-2xl shadow-[0_0_30px_rgba(255,107,0,0.5)] hover:scale-105 transition-all">
-      INICIAR PARTIDA (3 MINUTOS) 🚀
+      INICIAR PARTIDA (2 MINUTOS) 🚀
     </button>
   </div>
 
@@ -32,10 +32,10 @@
       </div>
     </div>
     
-    <!-- TEMPORIZADOR DE PARTIDA -->
+    <!-- TEMPORIZADOR DE PARTIDA (2 MINUTOS) -->
     <div class="text-center bg-black/40 px-6 py-2 rounded-xl border border-white/10 shadow-inner">
       <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1 tracking-widest">Tempo Restante</div>
-      <div id="game-timer" class="text-4xl font-black text-[#4ade80] tracking-widest" style="text-shadow: 0 0 10px rgba(74,222,128,0.5);">03:00</div>
+      <div id="game-timer" class="text-4xl font-black text-[#4ade80] tracking-widest" style="text-shadow: 0 0 10px rgba(74,222,128,0.5);">02:00</div>
     </div>
 
     <div class="flex items-center gap-6">
@@ -55,8 +55,8 @@
 
     <!-- TELA DE PÓDIO ANIMADA -->
     <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md">
-      <h2 class="text-6xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent animate-pulse">FIM DE JOGO!</h2>
-      <p class="text-[#9a93b8] mb-12 font-bold tracking-widest uppercase text-sm">Ranking Oficial de Liderança</p>
+      <h2 class="text-6xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent animate-pulse">TEMPO ESGOTADO!</h2>
+      <p class="text-[#9a93b8] mb-12 font-bold tracking-widest uppercase text-sm">Ranking Oficial dos Melhores Pilotos</p>
       <div id="podium-list" class="flex justify-center items-end gap-6 mb-12 w-full max-w-5xl"></div>
       <button onclick="location.reload()" class="px-10 py-5 rounded-2xl bg-[#ff6b00] text-white hover:bg-[#ff8533] font-black text-xl transition-all shadow-[0_0_20px_rgba(255,107,0,0.5)]">JOGAR NOVAMENTE</button>
     </div>
@@ -85,7 +85,16 @@
   window.addEventListener('resize', resize); resize();
 
   let players={}, connections={}, bullets=[], enemies=[], particles=[], floatTexts=[];
-  let gameActive = false; let gameTime = 180; let screenShake = 0;
+  let gameActive = false; let gameTime = 120; // 2 Minutos
+  let screenShake = 0;
+
+  // As 20 Cores do Círculo Cromático
+  const PALETTE = [
+    '#FF0000', '#FF4500', '#FF8C00', '#FFA500', '#FFD700', 
+    '#FFFF00', '#ADFF2F', '#32CD32', '#00FF00', '#00FA9A', 
+    '#00FFFF', '#00BFFF', '#1E90FF', '#0000FF', '#8A2BE2', 
+    '#9932CC', '#FF00FF', '#FF1493', '#FF69B4', '#FFFFFF'
+  ];
 
   const TARGETS = [
     { title: 'Microgerenciamento', hp: 3, pts: 30, color: '#ffb700' },
@@ -105,14 +114,23 @@
     peer.on('open', () => {
       document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-[#4ade80]');
       document.getElementById('room-status').textContent = 'Partida Pronta!';
-      gameActive = true; setInterval(updateTimer, 1000); // Inicia Temporizador
+      gameActive = true; setInterval(updateTimer, 1000); 
     });
 
     peer.on('connection', (conn) => {
       conn.on('data', (data) => {
         if(data.type === 'JOIN') {
           playLaser(800, 0.5, 0.1);
-          players[data.player.id] = { ...data.player, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0 };
+          
+          // GESTÃO DE CORES ÚNICAS
+          let activeColors = Object.values(players).map(p => p.color);
+          let requestedColor = data.player.color;
+          if(activeColors.includes(requestedColor)) {
+            // Se a cor já estiver em uso, pega a primeira disponível do círculo
+            requestedColor = PALETTE.find(c => !activeColors.includes(c)) || requestedColor;
+          }
+
+          players[data.player.id] = { ...data.player, color: requestedColor, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0 };
           connections[data.player.id] = conn; document.getElementById('conn-count').textContent = Object.keys(players).length+'/20';
         }
         if(data.type === 'INPUT' && players[data.playerId]) players[data.playerId].inputs = data.inputs;
@@ -136,7 +154,6 @@
     let m = Math.floor(gameTime/60).toString().padStart(2,'0'); let s = (gameTime%60).toString().padStart(2,'0');
     let tEl = document.getElementById('game-timer'); tEl.textContent = `${m}:${s}`;
     if(gameTime <= 30) tEl.classList.replace('text-[#4ade80]', 'text-red-500'); // Fica vermelho nos 30s finais
-    
     if(gameTime <= 0) { gameActive = false; showPodium(); }
   }
 
@@ -144,7 +161,6 @@
     let list = document.getElementById('podium-list'); list.innerHTML = '';
     let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
     
-    // Rearranja para o 1º lugar ficar no centro (Ordem visual: 2º, 1º, 3º)
     let displayOrder = [];
     if(sorted[1]) displayOrder.push({p: sorted[1], pos: 2, delay: 'delay-2', height: 'h-64'});
     if(sorted[0]) displayOrder.push({p: sorted[0], pos: 1, delay: 'delay-1', height: 'h-80', extra: 'scale-110 z-10 shadow-[0_0_40px_rgba(255,183,0,0.4)]'});
@@ -166,7 +182,11 @@
   }
 
   function spawnParticles(x, y, color) { for(let i=0; i<25; i++) particles.push({ x,y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, life:1.0, color }); }
-  function spawnText(x, y, text, color) { floatTexts.push({x, y, text, color, life: 1.0, vy: -1.5}); }
+  
+  // FUNÇÃO DE TEXTO FLUTUANTE (AGORA SOBE MAIS E FADE OUT)
+  function spawnText(x, y, text, color, isBig = false) { 
+    floatTexts.push({x, y, text, color, life: 1.0, vy: -2.0, isBig }); 
+  }
 
   function update() {
     stars.forEach(s => { s.y += s.v; if(s.y > H) s.y = 0; });
@@ -180,13 +200,11 @@
       if(p.inputs['LEFT']) p.vx-=accel; if(p.inputs['RIGHT']) p.vx+=accel; if(p.inputs['UP']) p.vy-=accel; if(p.inputs['DOWN']) p.vy+=accel;
       p.vx*=friction; p.vy*=friction; p.x=Math.max(40,Math.min(W-40,p.x+p.vx)); p.y=Math.max(40,Math.min(H-40,p.y+p.vy));
 
-      // LÓGICA DE TIRO (BASEADA NO WEAPON LEVEL)
       if(p.inputs['SHOOT']) {
-        let fireRate = p.weaponLvl >= 4 ? 100 : 150; // Lvl máximo atira mais rápido
+        let fireRate = p.weaponLvl >= 4 ? 100 : 150;
         if(Date.now() - p.lastShoot > fireRate) {
           p.lastShoot = Date.now();
-          playLaser(p.weaponLvl*200 + 400, 0.1, 0.05); // Som muda com o level
-          
+          playLaser(p.weaponLvl*200 + 400, 0.1, 0.05); 
           let w = p.weaponLvl || 1;
           if(w === 1) { bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-14, color:p.color, ownerId:p.id, dmg:1 }); }
           else if(w === 2) { 
@@ -198,18 +216,19 @@
             bullets.push({ x:p.x-15, y:p.y-25, vx:-2, vy:-13, color:p.color, ownerId:p.id, dmg:1 });
             bullets.push({ x:p.x+15, y:p.y-25, vx:2, vy:-13, color:p.color, ownerId:p.id, dmg:1 });
           }
-          else { // LVL 4 MÁXIMO
+          else { 
             bullets.push({ x:p.x, y:p.y-30, vx:0, vy:-16, color:'#ffffff', ownerId:p.id, dmg:2 });
             bullets.push({ x:p.x-15, y:p.y-25, vx:-3, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
             bullets.push({ x:p.x+15, y:p.y-25, vx:3, vy:-14, color:p.color, ownerId:p.id, dmg:1 });
           }
         }
       }
-      if(connections[id]) connections[id].send({ type:'SYNC', score:p.score, lives:p.lives, weaponLvl:p.weaponLvl });
+      // Envia a cor assinada pelo host para atualizar no celular (caso precise)
+      if(connections[id]) connections[id].send({ type:'SYNC', score:p.score, lives:p.lives, weaponLvl:p.weaponLvl, color:p.color });
     });
 
     for(let i=particles.length-1; i>=0; i--) { let pt=particles[i]; pt.x+=pt.vx; pt.y+=pt.vy; pt.life-=0.04; if(pt.life<=0) particles.splice(i,1); }
-    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.02; if(ft.life<=0) floatTexts.splice(i,1); }
+    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.015; if(ft.life<=0) floatTexts.splice(i,1); }
 
     for(let i=bullets.length-1; i>=0; i--) {
       let b=bullets[i]; b.x+=b.vx; b.y+=b.vy; if(b.y < -20) { bullets.splice(i,1); continue; }
@@ -220,11 +239,11 @@
           if(e.hp<=0) {
             playNoise(0.3, 0.15, 400); spawnParticles(e.x,e.y,e.color); screenShake=8;
             
-            // SISTEMA DE EVOLUÇÃO (LEVEL UP)
             let shooter = players[b.ownerId];
             if(shooter) {
               shooter.score += e.pts; shooter.kills = (shooter.kills||0) + 1;
-              spawnText(e.x, e.y, `+${e.pts}`, '#3dd6ff');
+              // ANIMAÇÃO DE PONTUAÇÃO BEM VISÍVEL NA TELA
+              spawnText(e.x, e.y, `+${e.pts} PTS`, shooter.color, true);
               
               let oldLvl = shooter.weaponLvl;
               if(shooter.kills >= 15) shooter.weaponLvl = 4;
@@ -232,7 +251,7 @@
               else if(shooter.kills >= 3) shooter.weaponLvl = 2;
 
               if(shooter.weaponLvl > oldLvl) {
-                spawnText(shooter.x, shooter.y-50, '⚡ LEVEL UP ⚡', '#ffb700');
+                spawnText(shooter.x, shooter.y-60, '⚡ LEVEL UP ⚡', '#ffffff', true);
                 if(connections[shooter.id]) connections[shooter.id].send({type:'EVENT', event:'POWERUP'});
               } else {
                 if(connections[shooter.id]) connections[shooter.id].send({type:'EVENT', event:'KILL'});
@@ -248,11 +267,10 @@
       let e=enemies[i]; e.y+=e.vy; if(e.y>H+50){enemies.splice(i,1); continue;}
       Object.keys(players).forEach(id => {
         let p=players[id];
-        // DANO AO JOGADOR -> PERDE LEVEL DA ARMA
         if(p.lives>0 && p.invuln<=0 && Math.abs(e.x-p.x)<45 && Math.abs(e.y-p.y)<35) {
-          p.lives--; p.weaponLvl=1; p.kills=0; p.invuln=120; // Zera arma e fica imune
-          playNoise(0.6, 0.3, 200); spawnParticles(p.x,p.y,'#ff0000'); screenShake=25; // Tremor forte
-          spawnText(p.x, p.y-30, 'PUNIDO!', '#ff0000');
+          p.lives--; p.weaponLvl=1; p.kills=0; p.invuln=120;
+          playNoise(0.6, 0.3, 200); spawnParticles(p.x,p.y,'#ff0000'); screenShake=25; 
+          spawnText(p.x, p.y-30, 'PUNIDO!', '#ff0000', true);
           enemies.splice(i,1);
           if(connections[id]) connections[id].send({type:'EVENT', event:'HIT'});
         }
@@ -284,7 +302,6 @@
       ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name,0,-45);
       ctx.fillStyle='#ffb700'; ctx.font='11px sans-serif'; ctx.fillText(p.score+' pts',0,45);
       
-      // Aura se tiver Weapon Lvl Alto
       if(p.weaponLvl >= 3) {
         ctx.strokeStyle=p.color; ctx.globalAlpha=0.3; ctx.beginPath(); ctx.arc(0,0,30,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1.0;
       }
@@ -298,11 +315,15 @@
 
     floatTexts.forEach(ft => {
       ctx.globalAlpha = Math.max(0, ft.life);
-      ctx.fillStyle = ft.color; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = ft.color; 
+      ctx.font = ft.isBig ? '900 24px sans-serif' : 'bold 16px sans-serif'; // Fonte maior se for 'Big'
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 5; // Sombra para destacar
       ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.shadowBlur = 0;
     }); ctx.globalAlpha = 1.0;
 
-    ctx.restore(); // Fim do Screen Shake
+    ctx.restore();
   }
   function loop() { update(); draw(); requestAnimationFrame(loop); }
 </script>
