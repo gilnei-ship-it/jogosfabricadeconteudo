@@ -32,37 +32,39 @@
       </div>
     </div>
     
-    <!-- TEMPORIZADOR DE PARTIDA (2 MINUTOS) -->
     <div class="text-center bg-black/40 px-6 py-2 rounded-xl border border-white/10 shadow-inner">
       <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1 tracking-widest">Tempo Restante</div>
       <div id="game-timer" class="text-4xl font-black text-[#4ade80] tracking-widest" style="text-shadow: 0 0 10px rgba(74,222,128,0.5);">02:00</div>
     </div>
 
-    <div class="flex items-center gap-6">
+    <div class="flex items-center gap-5">
       <div class="text-center bg-[#251e42] px-4 py-2 rounded-xl border border-white/10">
         <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1">CÓDIGO DE ACESSO</div>
         <div id="room-code-display" class="text-3xl font-black text-white tracking-widest">----</div>
       </div>
       <div class="text-right">
         <div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos</div>
-        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0/20</div>
+        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff] mr-2">0/20</div>
       </div>
+      
+      <button onclick="location.reload()" class="flex flex-col items-center justify-center px-4 py-2 rounded-xl bg-[#251e42] hover:bg-red-600 text-[#9a93b8] hover:text-white border border-white/10 hover:border-red-500 transition-all shadow-lg group">
+        <span class="text-lg group-hover:animate-spin">🔄</span>
+        <span class="text-[9px] font-bold uppercase mt-1">Reset</span>
+      </button>
+
     </div>
   </header>
 
   <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#05030a]">
     
-    <!-- PLACAR AO VIVO (RANKING) -->
     <div id="live-ranking-panel" class="hidden absolute top-4 right-4 bg-[#17122b]/80 backdrop-blur-md p-4 rounded-2xl border border-white/10 z-10 w-72 shadow-2xl">
       <h3 class="text-[#ffb700] font-black text-sm uppercase tracking-widest mb-3 text-center">🏆 Ranking ao Vivo</h3>
       <div id="live-ranking-list" class="space-y-2">
-        <!-- Preenchido via JS -->
       </div>
     </div>
 
     <canvas id="arena-canvas" class="w-full h-full"></canvas>
 
-    <!-- TELA DE PÓDIO ANIMADA -->
     <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md">
       <h2 class="text-6xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ffb700] to-[#3dd6ff] bg-clip-text text-transparent animate-pulse">TEMPO ESGOTADO!</h2>
       <p class="text-[#9a93b8] mb-12 font-bold tracking-widest uppercase text-sm">Ranking Oficial dos Melhores Pilotos</p>
@@ -94,7 +96,7 @@
   window.addEventListener('resize', resize); resize();
 
   let players={}, connections={}, bullets=[], enemies=[], particles=[], floatTexts=[];
-  let gameActive = false; let gameTime = 120; // 2 Minutos
+  let gameActive = false; let gameTime = 120;
   let screenShake = 0;
 
   const PALETTE = [
@@ -125,7 +127,7 @@
       document.getElementById('live-ranking-panel').classList.remove('hidden');
       gameActive = true; 
       setInterval(updateTimer, 1000); 
-      setInterval(updateLiveRanking, 1000); // Atualiza Placar a cada 1 seg
+      setInterval(updateLiveRanking, 1000);
     });
 
     peer.on('connection', (conn) => {
@@ -137,7 +139,8 @@
           if(activeColors.includes(requestedColor)) {
             requestedColor = PALETTE.find(c => !activeColors.includes(c)) || requestedColor;
           }
-          players[data.player.id] = { ...data.player, color: requestedColor, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0 };
+          // AQUI ESTÁ A CORREÇÃO PRINCIPAL: score: 0 adicionado explicitly
+          players[data.player.id] = { ...data.player, color: requestedColor, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0, score: 0 };
           connections[data.player.id] = conn; document.getElementById('conn-count').textContent = Object.keys(players).length+'/20';
           updateLiveRanking();
         }
@@ -165,11 +168,10 @@
     if(gameTime <= 0) { gameActive = false; document.getElementById('live-ranking-panel').classList.add('hidden'); showPodium(); }
   }
 
-  // FUNÇÃO QUE ATUALIZA O PLACAR AO VIVO
   function updateLiveRanking() {
     if(!gameActive) return;
     let list = document.getElementById('live-ranking-list');
-    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 5); // Mostra os top 5
+    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 5); 
     
     if(sorted.length === 0) {
       list.innerHTML = '<div class="text-center text-xs text-white/50 py-2">Aguardando pilotos...</div>';
@@ -213,11 +215,7 @@
   }
 
   function spawnParticles(x, y, color) { for(let i=0; i<25; i++) particles.push({ x,y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, life:1.0, color }); }
-  
-  // FUNÇÃO DE PONTUAÇÃO FLUTUANTE (Demora mais pra sumir e cresce)
-  function spawnText(x, y, text, color, isBig = false) { 
-    floatTexts.push({x, y, text, color, life: 1.0, vy: -1.5, isBig }); 
-  }
+  function spawnText(x, y, text, color, isBig = false) { floatTexts.push({x, y, text, color, life: 1.0, vy: -1.5, isBig }); }
 
   function update() {
     stars.forEach(s => { s.y += s.v; if(s.y > H) s.y = 0; });
@@ -258,7 +256,7 @@
     });
 
     for(let i=particles.length-1; i>=0; i--) { let pt=particles[i]; pt.x+=pt.vx; pt.y+=pt.vy; pt.life-=0.04; if(pt.life<=0) particles.splice(i,1); }
-    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.01; if(ft.life<=0) floatTexts.splice(i,1); } // Diminui o life mais devagar (Dura mais tempo)
+    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.01; if(ft.life<=0) floatTexts.splice(i,1); } 
 
     for(let i=bullets.length-1; i>=0; i--) {
       let b=bullets[i]; b.x+=b.vx; b.y+=b.vy; if(b.y < -20) { bullets.splice(i,1); continue; }
@@ -273,7 +271,6 @@
             if(shooter) {
               shooter.score += e.pts; shooter.kills = (shooter.kills||0) + 1;
               
-              // TEXTO FLUTUANTE EXPLOSIVO DOS PONTOS AQUI
               spawnText(e.x, e.y, `+${e.pts} PTS`, shooter.color, true);
               
               let oldLvl = shooter.weaponLvl;
@@ -343,15 +340,11 @@
       ctx.restore();
     });
 
-    // DESENHA OS PONTOS FLUTUANTES AUMENTANDO DE TAMANHO
     floatTexts.forEach(ft => {
       ctx.globalAlpha = Math.max(0, ft.life);
       ctx.fillStyle = ft.color; 
-      
-      // Efeito de crescer enquanto some
       let fontSize = ft.isBig ? 24 + ((1 - ft.life) * 20) : 16; 
       ctx.font = `900 ${fontSize}px sans-serif`; 
-      
       ctx.textAlign = 'center';
       ctx.shadowColor = '#000'; ctx.shadowBlur = 8; 
       ctx.fillText(ft.text, ft.x, ft.y);
