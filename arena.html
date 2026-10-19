@@ -8,7 +8,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    :root { var(--bg): #0d0a1a; }
     body { background: #0d0a1a; color: #f4f0ff; font-family: 'Bricolage Grotesque', sans-serif; margin: 0; overflow: hidden; }
     canvas { display: block; }
   </style>
@@ -65,8 +64,8 @@
   resize();
 
   const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-  const TOPIC_IN = 'fabrica_conteudos_ctl_events';
-  const TOPIC_OUT = 'fabrica_conteudos_arena_events';
+  const TOPIC_FROM_CTRL = 'fabrica_conteudos_main_game_arena';
+  const TOPIC_TO_CTRL = 'fabrica_conteudos_main_game_ctrl';
 
   var players = {};
   var bullets = [], enemies = [];
@@ -80,18 +79,20 @@
     { title: 'Churn de Clientes', hp: 5, pts: 50, color: '#ff6b00' }
   ];
 
-  client.on('connect', () => client.subscribe(TOPIC_IN));
+  client.on('connect', () => {
+    client.subscribe(TOPIC_FROM_CTRL);
+  });
 
   client.on('message', (topic, message) => {
     try {
       var data = JSON.parse(message.toString());
       if(data.type === 'JOIN') {
-        if(Object.keys(players).length < 20) {
+        if(!players[data.player.id]) {
           players[data.player.id] = {
             id: data.player.id,
             name: data.player.name,
             color: data.player.color,
-            x: Math.random() * (W - 100) + 50,
+            x: Math.random() * (W - 200) + 100,
             y: H - 100,
             score: 0,
             lives: 3,
@@ -150,7 +151,7 @@
         }
       }
 
-      client.publish(TOPIC_OUT, JSON.stringify({ type: 'SYNC_PLAYER', playerId: p.id, score: p.score, lives: p.lives, weaponLvl: p.weaponLvl, specialCharge: p.specialCharge }));
+      client.publish(TOPIC_TO_CTRL, JSON.stringify({ type: 'SYNC_PLAYER', playerId: p.id, score: p.score, lives: p.lives, weaponLvl: p.weaponLvl, specialCharge: p.specialCharge }));
     });
 
     for(var i = bullets.length - 1; i >= 0; i--) {
