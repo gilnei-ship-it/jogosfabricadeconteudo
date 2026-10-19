@@ -51,6 +51,15 @@
   </header>
 
   <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#05030a]">
+    
+    <!-- PLACAR AO VIVO (RANKING) -->
+    <div id="live-ranking-panel" class="hidden absolute top-4 right-4 bg-[#17122b]/80 backdrop-blur-md p-4 rounded-2xl border border-white/10 z-10 w-72 shadow-2xl">
+      <h3 class="text-[#ffb700] font-black text-sm uppercase tracking-widest mb-3 text-center">🏆 Ranking ao Vivo</h3>
+      <div id="live-ranking-list" class="space-y-2">
+        <!-- Preenchido via JS -->
+      </div>
+    </div>
+
     <canvas id="arena-canvas" class="w-full h-full"></canvas>
 
     <!-- TELA DE PÓDIO ANIMADA -->
@@ -88,7 +97,6 @@
   let gameActive = false; let gameTime = 120; // 2 Minutos
   let screenShake = 0;
 
-  // As 20 Cores do Círculo Cromático
   const PALETTE = [
     '#FF0000', '#FF4500', '#FF8C00', '#FFA500', '#FFD700', 
     '#FFFF00', '#ADFF2F', '#32CD32', '#00FF00', '#00FA9A', 
@@ -114,28 +122,28 @@
     peer.on('open', () => {
       document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-[#4ade80]');
       document.getElementById('room-status').textContent = 'Partida Pronta!';
-      gameActive = true; setInterval(updateTimer, 1000); 
+      document.getElementById('live-ranking-panel').classList.remove('hidden');
+      gameActive = true; 
+      setInterval(updateTimer, 1000); 
+      setInterval(updateLiveRanking, 1000); // Atualiza Placar a cada 1 seg
     });
 
     peer.on('connection', (conn) => {
       conn.on('data', (data) => {
         if(data.type === 'JOIN') {
           playLaser(800, 0.5, 0.1);
-          
-          // GESTÃO DE CORES ÚNICAS
           let activeColors = Object.values(players).map(p => p.color);
           let requestedColor = data.player.color;
           if(activeColors.includes(requestedColor)) {
-            // Se a cor já estiver em uso, pega a primeira disponível do círculo
             requestedColor = PALETTE.find(c => !activeColors.includes(c)) || requestedColor;
           }
-
           players[data.player.id] = { ...data.player, color: requestedColor, x: W/2, y: H-150, inputs: {}, lastShoot: 0, vx: 0, vy: 0, invuln: 180, weaponLvl: 1, kills: 0 };
           connections[data.player.id] = conn; document.getElementById('conn-count').textContent = Object.keys(players).length+'/20';
+          updateLiveRanking();
         }
         if(data.type === 'INPUT' && players[data.playerId]) players[data.playerId].inputs = data.inputs;
       });
-      conn.on('close', () => { const id = Object.keys(connections).find(k=>connections[k]===conn); if(id){delete players[id]; delete connections[id];} });
+      conn.on('close', () => { const id = Object.keys(connections).find(k=>connections[k]===conn); if(id){delete players[id]; delete connections[id]; updateLiveRanking();} });
     });
 
     setInterval(() => {
@@ -153,8 +161,31 @@
     gameTime--;
     let m = Math.floor(gameTime/60).toString().padStart(2,'0'); let s = (gameTime%60).toString().padStart(2,'0');
     let tEl = document.getElementById('game-timer'); tEl.textContent = `${m}:${s}`;
-    if(gameTime <= 30) tEl.classList.replace('text-[#4ade80]', 'text-red-500'); // Fica vermelho nos 30s finais
-    if(gameTime <= 0) { gameActive = false; showPodium(); }
+    if(gameTime <= 30) tEl.classList.replace('text-[#4ade80]', 'text-red-500'); 
+    if(gameTime <= 0) { gameActive = false; document.getElementById('live-ranking-panel').classList.add('hidden'); showPodium(); }
+  }
+
+  // FUNÇÃO QUE ATUALIZA O PLACAR AO VIVO
+  function updateLiveRanking() {
+    if(!gameActive) return;
+    let list = document.getElementById('live-ranking-list');
+    let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 5); // Mostra os top 5
+    
+    if(sorted.length === 0) {
+      list.innerHTML = '<div class="text-center text-xs text-white/50 py-2">Aguardando pilotos...</div>';
+      return;
+    }
+
+    list.innerHTML = sorted.map((p, i) => `
+      <div class="flex justify-between items-center bg-[#251e42] p-2 rounded-lg border border-white/5">
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-black ${i===0 ? 'text-[#ffb700]' : 'text-white/50'} w-4">${i+1}º</span>
+          <div class="w-4 h-4 rounded-full shadow-[0_0_8px_${p.color}]" style="background:${p.color}"></div>
+          <span class="font-bold text-sm text-white uppercase truncate w-24">${p.name}</span>
+        </div>
+        <span class="font-black text-lg text-[#3dd6ff]">${p.score}</span>
+      </div>
+    `).join('');
   }
 
   function showPodium() {
@@ -183,9 +214,9 @@
 
   function spawnParticles(x, y, color) { for(let i=0; i<25; i++) particles.push({ x,y, vx:(Math.random()-0.5)*12, vy:(Math.random()-0.5)*12, life:1.0, color }); }
   
-  // FUNÇÃO DE TEXTO FLUTUANTE (AGORA SOBE MAIS E FADE OUT)
+  // FUNÇÃO DE PONTUAÇÃO FLUTUANTE (Demora mais pra sumir e cresce)
   function spawnText(x, y, text, color, isBig = false) { 
-    floatTexts.push({x, y, text, color, life: 1.0, vy: -2.0, isBig }); 
+    floatTexts.push({x, y, text, color, life: 1.0, vy: -1.5, isBig }); 
   }
 
   function update() {
@@ -223,12 +254,11 @@
           }
         }
       }
-      // Envia a cor assinada pelo host para atualizar no celular (caso precise)
       if(connections[id]) connections[id].send({ type:'SYNC', score:p.score, lives:p.lives, weaponLvl:p.weaponLvl, color:p.color });
     });
 
     for(let i=particles.length-1; i>=0; i--) { let pt=particles[i]; pt.x+=pt.vx; pt.y+=pt.vy; pt.life-=0.04; if(pt.life<=0) particles.splice(i,1); }
-    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.015; if(ft.life<=0) floatTexts.splice(i,1); }
+    for(let i=floatTexts.length-1; i>=0; i--) { let ft=floatTexts[i]; ft.y+=ft.vy; ft.life-=0.01; if(ft.life<=0) floatTexts.splice(i,1); } // Diminui o life mais devagar (Dura mais tempo)
 
     for(let i=bullets.length-1; i>=0; i--) {
       let b=bullets[i]; b.x+=b.vx; b.y+=b.vy; if(b.y < -20) { bullets.splice(i,1); continue; }
@@ -242,7 +272,8 @@
             let shooter = players[b.ownerId];
             if(shooter) {
               shooter.score += e.pts; shooter.kills = (shooter.kills||0) + 1;
-              // ANIMAÇÃO DE PONTUAÇÃO BEM VISÍVEL NA TELA
+              
+              // TEXTO FLUTUANTE EXPLOSIVO DOS PONTOS AQUI
               spawnText(e.x, e.y, `+${e.pts} PTS`, shooter.color, true);
               
               let oldLvl = shooter.weaponLvl;
@@ -300,7 +331,6 @@
       if(p.invuln>0 && Math.floor(Date.now()/100)%2===0) return;
       ctx.save(); ctx.translate(p.x,p.y);
       ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name,0,-45);
-      ctx.fillStyle='#ffb700'; ctx.font='11px sans-serif'; ctx.fillText(p.score+' pts',0,45);
       
       if(p.weaponLvl >= 3) {
         ctx.strokeStyle=p.color; ctx.globalAlpha=0.3; ctx.beginPath(); ctx.arc(0,0,30,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1.0;
@@ -313,12 +343,17 @@
       ctx.restore();
     });
 
+    // DESENHA OS PONTOS FLUTUANTES AUMENTANDO DE TAMANHO
     floatTexts.forEach(ft => {
       ctx.globalAlpha = Math.max(0, ft.life);
       ctx.fillStyle = ft.color; 
-      ctx.font = ft.isBig ? '900 24px sans-serif' : 'bold 16px sans-serif'; // Fonte maior se for 'Big'
+      
+      // Efeito de crescer enquanto some
+      let fontSize = ft.isBig ? 24 + ((1 - ft.life) * 20) : 16; 
+      ctx.font = `900 ${fontSize}px sans-serif`; 
+      
       ctx.textAlign = 'center';
-      ctx.shadowColor = '#000'; ctx.shadowBlur = 5; // Sombra para destacar
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 8; 
       ctx.fillText(ft.text, ft.x, ft.y);
       ctx.shadowBlur = 0;
     }); ctx.globalAlpha = 1.0;
