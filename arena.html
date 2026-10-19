@@ -6,6 +6,8 @@
   <title>Arena Principal - Jogos da Fábrica de Conteúdos</title>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Biblioteca PeerJS para WebRTC P2P -->
+  <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
   <style>
     body { background: #0d0a1a; color: #f4f0ff; font-family: 'Bricolage Grotesque', sans-serif; margin: 0; overflow: hidden; }
     canvas { display: block; }
@@ -14,43 +16,58 @@
 <body class="h-screen w-screen flex flex-col justify-between p-4 relative">
 
   <header class="flex justify-between items-center bg-[#17122b]/90 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-md z-10">
-    <div class="flex items-center gap-3">
-      <div class="w-3 h-3 rounded-full bg-[#ff6b00] animate-ping"></div>
+    <div class="flex items-center gap-4">
+      <div id="status-dot" class="w-4 h-4 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(255,0,0,0.8)]"></div>
       <div>
         <h1 class="text-xl font-extrabold bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">
           FÁBRICA DE CONTEÚDOS · ARENA MULTIPLAYER
         </h1>
-        <p class="text-xs text-[#9a93b8]">Desafios de Liderança e Desenvolvimento Humano</p>
+        <p id="room-status" class="text-xs text-[#9a93b8]">Iniciando servidor local...</p>
       </div>
     </div>
-    <div class="flex items-center gap-6">
-      <div class="text-right"><div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos</div><div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0 / 20</div></div>
-      <button id="btn-finish" class="px-5 py-2.5 rounded-xl bg-[#ff3d8b] hover:bg-[#ff5d7a] font-extrabold text-sm shadow-lg">VER TOP 3 🏆</button>
+    <div class="flex items-center gap-8">
+      <div class="text-center bg-[#251e42] px-4 py-2 rounded-xl border border-white/10">
+        <div class="text-[10px] text-[#9a93b8] font-bold uppercase mb-1">Código da Sala</div>
+        <div id="room-code-display" class="text-3xl font-black text-white tracking-widest">----</div>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] text-[#9a93b8] font-bold uppercase">Pilotos Online</div>
+        <div id="conn-count" class="text-2xl font-extrabold text-[#3dd6ff]">0 / 20</div>
+      </div>
+      <button id="btn-finish" class="px-5 py-3 rounded-xl bg-[#ff3d8b] hover:bg-[#ff5d7a] font-extrabold text-sm shadow-[0_0_15px_rgba(255,61,139,0.5)] transition-all">VER TOP 3 🏆</button>
     </div>
   </header>
 
-  <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#0a0716]">
+  <main class="flex-1 my-3 relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#05030a]">
     <canvas id="arena-canvas" class="w-full h-full"></canvas>
 
-    <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center">
-      <h2 class="text-4xl font-extrabold mb-2 bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">🏆 PÓDIO DOS CAMPEÕES 🏆</h2>
-      <div id="podium-list" class="flex justify-center items-end gap-6 mb-8 w-full max-w-2xl"></div>
-      <button onclick="location.reload()" class="px-8 py-3.5 rounded-xl bg-[#ff6b00] font-extrabold text-lg">REINICIAR</button>
+    <div id="podium-modal" class="hidden absolute inset-0 bg-[#0d0a1a]/95 z-50 flex flex-col items-center justify-center p-6 text-center backdrop-blur-sm">
+      <h2 class="text-5xl font-extrabold mb-4 bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">🏆 PÓDIO DE LIDERANÇA 🏆</h2>
+      <p class="text-[#9a93b8] mb-8 font-semibold">Os maiores destrutores de barreiras organizacionais</p>
+      <div id="podium-list" class="flex justify-center items-end gap-6 mb-10 w-full max-w-4xl"></div>
+      <button onclick="location.reload()" class="px-8 py-4 rounded-xl bg-[#ff6b00] hover:bg-[#ff8533] font-extrabold text-lg transition-all shadow-lg">REINICIAR ARENA</button>
     </div>
   </main>
 
 <script>
+  // Setup Canvas & Graphics
   const canvas = document.getElementById('arena-canvas');
   const ctx = canvas.getContext('2d');
   let W = 0, H = 0;
-
-  function resize() { W = canvas.width = canvas.parentElement.clientWidth; H = canvas.height = canvas.parentElement.clientHeight; }
+  
+  let stars = [];
+  function resize() { 
+    W = canvas.width = canvas.parentElement.clientWidth; 
+    H = canvas.height = canvas.parentElement.clientHeight; 
+    stars = Array.from({length: 150}, () => ({x: Math.random()*W, y: Math.random()*H, s: Math.random()*2+0.5, v: Math.random()*1+0.5}));
+  }
   window.addEventListener('resize', resize);
   resize();
 
-  const channel = new BroadcastChannel('fabrica_conteudos_v3');
+  // Entidades do Jogo
   let players = {};
-  let bullets = [], enemies = [];
+  let connections = {};
+  let bullets = [], enemies = [], particles = [];
 
   const TARGETS = [
     { title: 'Microgerenciamento', hp: 3, pts: 30, color: '#ff3d8b' },
@@ -61,61 +78,130 @@
     { title: 'Churn de Clientes', hp: 5, pts: 50, color: '#ff6b00' }
   ];
 
-  channel.onmessage = (e) => {
-    let data = e.data;
-    if(data.type === 'JOIN' || data.type === 'INPUT') {
-      if(!players[data.player.id]) {
+  // Configuração WebRTC (PeerJS)
+  const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+  document.getElementById('room-code-display').textContent = roomCode;
+  
+  const peer = new Peer('fabrica-' + roomCode);
+
+  peer.on('open', (id) => {
+    document.getElementById('status-dot').classList.replace('bg-red-500', 'bg-[#4ade80]');
+    document.getElementById('status-dot').classList.replace('shadow-[0_0_10px_rgba(255,0,0,0.8)]', 'shadow-[0_0_10px_rgba(74,222,128,0.8)]');
+    document.getElementById('room-status').textContent = 'Servidor Online - Aguardando jogadores';
+  });
+
+  peer.on('connection', (conn) => {
+    conn.on('data', (data) => {
+      if(data.type === 'JOIN') {
         players[data.player.id] = {
           ...data.player,
-          x: W / 2 + (Math.random() * 150 - 75),
-          y: H - 100,
-          inputs: data.inputs || {}
+          x: W / 2 + (Math.random() * 200 - 100),
+          y: H - 120,
+          inputs: {}, lastShoot: 0, 
+          vx: 0, vy: 0
         };
-      } else {
-        players[data.player.id].inputs = data.inputs || players[data.player.id].inputs;
-        players[data.player.id].model = data.player.model || players[data.player.id].model;
-        players[data.player.id].color = data.player.color || players[data.player.id].color;
+        connections[data.player.id] = conn;
+        updatePlayerCount();
       }
-      document.getElementById('conn-count').textContent = Object.keys(players).length + ' / 20';
-    }
-  };
+      
+      if(data.type === 'INPUT' && players[data.playerId]) {
+        players[data.playerId].inputs = data.inputs;
+      }
+    });
 
+    conn.on('close', () => {
+      // Limpar jogador desconectado
+      const id = Object.keys(connections).find(key => connections[key] === conn);
+      if(id) { delete players[id]; delete connections[id]; updatePlayerCount(); }
+    });
+  });
+
+  function updatePlayerCount() {
+    document.getElementById('conn-count').textContent = Object.keys(players).length + ' / 20';
+  }
+
+  // Spawn de Inimigos
   setInterval(() => {
-    if(enemies.length < 10) {
+    if(enemies.length < 8 + Object.keys(players).length * 2) {
       let t = TARGETS[Math.floor(Math.random() * TARGETS.length)];
-      enemies.push({ x: Math.random() * (W - 120) + 60, y: -40, vy: 1.2, ...t });
+      enemies.push({ x: Math.random() * (W - 140) + 70, y: -50, vy: 1.0 + Math.random()*1.5, ...t, maxHp: t.hp });
     }
-  }, 2000);
+  }, 1500);
 
+  // Explosões Visuais
+  function spawnParticles(x, y, color) {
+    for(let i=0; i<15; i++) {
+      particles.push({ x, y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1.0, color });
+    }
+  }
+
+  // Lógica do Jogo
   function update() {
+    // Estrelas
+    stars.forEach(s => { s.y += s.v; if(s.y > H) s.y = 0; });
+
+    // Atualiza Jogadores
     Object.keys(players).forEach(id => {
       let p = players[id];
-      let spd = 6;
-      if(p.inputs['LEFT']) p.x = Math.max(30, p.x - spd);
-      if(p.inputs['RIGHT']) p.x = Math.min(W - 30, p.x + spd);
-      if(p.inputs['UP']) p.y = Math.max(30, p.y - spd);
-      if(p.inputs['DOWN']) p.y = Math.min(H - 30, p.y + spd);
+      if(p.lives <= 0) return; // Morto
 
+      let accel = 0.8, friction = 0.85, maxSpd = (p.model==='agile') ? 8 : (p.model==='heavy') ? 5 : 6;
+      
+      if(p.inputs['LEFT']) p.vx -= accel;
+      if(p.inputs['RIGHT']) p.vx += accel;
+      if(p.inputs['UP']) p.vy -= accel;
+      if(p.inputs['DOWN']) p.vy += accel;
+
+      p.vx *= friction; p.vy *= friction;
+      
+      // Limites de Velocidade e Tela
+      p.vx = Math.max(-maxSpd, Math.min(maxSpd, p.vx));
+      p.vy = Math.max(-maxSpd, Math.min(maxSpd, p.vy));
+      p.x = Math.max(30, Math.min(W - 30, p.x + p.vx));
+      p.y = Math.max(30, Math.min(H - 30, p.y + p.vy));
+
+      // Tiros
       if(p.inputs['SHOOT']) {
-        if(!p.lastShoot || Date.now() - p.lastShoot > 200) {
+        let fireRate = p.model === 'heavy' ? 300 : 150;
+        if(Date.now() - p.lastShoot > fireRate) {
           p.lastShoot = Date.now();
-          bullets.push({ x: p.x, y: p.y - 20, vy: -12, color: p.color, ownerId: p.id });
+          if(p.model === 'heavy') {
+            bullets.push({ x: p.x - 12, y: p.y - 20, vy: -10, color: p.color, ownerId: p.id, dmg: 2 });
+            bullets.push({ x: p.x + 12, y: p.y - 20, vy: -10, color: p.color, ownerId: p.id, dmg: 2 });
+          } else {
+            bullets.push({ x: p.x, y: p.y - 25, vy: -14, color: p.color, ownerId: p.id, dmg: 1 });
+          }
         }
       }
 
-      channel.postMessage({ type: 'SYNC', playerId: p.id, score: p.score, lives: p.lives, weaponLvl: p.weaponLvl });
+      // Sincroniza estado para o celular deste jogador
+      if(connections[id]) {
+        connections[id].send({ type: 'SYNC', score: p.score, lives: p.lives, weaponLvl: p.weaponLvl });
+      }
     });
 
+    // Partículas
+    for(let i = particles.length - 1; i >= 0; i--) {
+      let pt = particles[i];
+      pt.x += pt.vx; pt.y += pt.vy; pt.life -= 0.05;
+      if(pt.life <= 0) particles.splice(i, 1);
+    }
+
+    // Tiros e Colisões
     for(let i = bullets.length - 1; i >= 0; i--) {
       let b = bullets[i];
       b.y += b.vy;
-      if(b.y < -10) { bullets.splice(i, 1); continue; }
+      if(b.y < -20) { bullets.splice(i, 1); continue; }
+      
       for(let j = enemies.length - 1; j >= 0; j--) {
         let e = enemies[j];
-        if(Math.abs(b.x - e.x) < 45 && Math.abs(b.y - e.y) < 25) {
-          e.hp--;
+        if(Math.abs(b.x - e.x) < 55 && Math.abs(b.y - e.y) < 25) {
+          e.hp -= b.dmg;
           bullets.splice(i, 1);
+          spawnParticles(b.x, b.y, b.color);
+          
           if(e.hp <= 0) {
+            spawnParticles(e.x, e.y, e.color);
             if(players[b.ownerId]) players[b.ownerId].score += e.pts;
             enemies.splice(j, 1);
           }
@@ -124,56 +210,88 @@
       }
     }
 
+    // Inimigos colidindo com Jogador
     for(let i = enemies.length - 1; i >= 0; i--) {
       let e = enemies[i];
       e.y += e.vy;
-      if(e.y > H + 30) { enemies.splice(i, 1); continue; }
+      if(e.y > H + 50) { enemies.splice(i, 1); continue; }
+      
       Object.keys(players).forEach(id => {
         let p = players[id];
-        if(Math.abs(e.x - p.x) < 30 && Math.abs(e.y - p.y) < 30) {
+        if(p.lives > 0 && Math.abs(e.x - p.x) < 40 && Math.abs(e.y - p.y) < 30) {
           p.lives--;
+          spawnParticles(p.x, p.y, '#ff3d8b');
           enemies.splice(i, 1);
         }
       });
     }
   }
 
+  // Renderização
   function draw() {
     ctx.clearRect(0, 0, W, H);
     
+    // Fundo Estrelado
+    ctx.fillStyle = '#ffffff';
+    stars.forEach(s => { ctx.globalAlpha = s.v/2; ctx.fillRect(s.x, s.y, s.s, s.s); });
+    ctx.globalAlpha = 1.0;
+
+    // Inimigos
     enemies.forEach(e => {
+      // Barra de vida
+      ctx.fillStyle = '#333'; ctx.fillRect(e.x - 55, e.y + 22, 110, 4);
+      ctx.fillStyle = '#4ade80'; ctx.fillRect(e.x - 55, e.y + 22, 110 * (e.hp/e.maxHp), 4);
+      
       ctx.fillStyle = e.color;
-      ctx.beginPath(); ctx.roundRect(e.x - 55, e.y - 18, 110, 36, 10); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(e.title, e.x, e.y + 4);
+      ctx.shadowColor = e.color; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.roundRect(e.x - 55, e.y - 18, 110, 36, 6); ctx.fill();
+      ctx.shadowBlur = 0; // reset
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(e.title, e.x, e.y);
     });
 
+    // Partículas
+    particles.forEach(pt => {
+      ctx.globalAlpha = Math.max(0, pt.life);
+      ctx.fillStyle = pt.color;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 3 * pt.life, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+
+    // Tiros
     bullets.forEach(b => {
       ctx.fillStyle = b.color;
+      ctx.shadowColor = b.color; ctx.shadowBlur = 8;
       ctx.fillRect(b.x - 2, b.y - 8, 4, 16);
+      ctx.shadowBlur = 0;
     });
 
-    // Renderiza cada avião conforme o modelo escolhido
+    // Jogadores
     Object.keys(players).forEach(id => {
       let p = players[id];
+      if(p.lives <= 0) return;
+
       ctx.save();
       ctx.translate(p.x, p.y);
       
-      // Nome do piloto
+      // Nome e Score
       ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(p.name, 0, -32);
+      ctx.fillText(p.name, 0, -35);
+      ctx.fillStyle = '#ff6b00'; ctx.font = '9px sans-serif';
+      ctx.fillText(p.score + ' pts', 0, 35);
 
       ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color; ctx.shadowBlur = 15;
+
+      // Desenha o modelo rotacionado levemente com base na velocidade X
+      ctx.rotate((p.vx * 2) * Math.PI / 180);
 
       if(p.model === 'fighter') {
-        // Modelo Ágil (Caça estreito)
-        ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(12, 14); ctx.lineTo(-12, 14); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(14, 14); ctx.lineTo(0, 8); ctx.lineTo(-14, 14); ctx.closePath(); ctx.fill();
       } else if(p.model === 'heavy') {
-        // Modelo Pesado (Bombardeiro largo com asas duplas)
-        ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(20, 10); ctx.lineTo(8, 16); ctx.lineTo(-8, 16); ctx.lineTo(-20, 10); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(24, 10); ctx.lineTo(8, 16); ctx.lineTo(-8, 16); ctx.lineTo(-24, 10); ctx.closePath(); ctx.fill();
       } else {
-        // Modelo Furtivo (Forma de delta / UFO)
-        ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, 12); ctx.lineTo(0, 8); ctx.lineTo(-18, 12); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(18, 12); ctx.lineTo(0, -2); ctx.lineTo(-18, 12); ctx.closePath(); ctx.fill();
       }
 
       ctx.restore();
@@ -183,14 +301,25 @@
   function loop() { update(); draw(); requestAnimationFrame(loop); }
   loop();
 
+  // Modal Podium
   document.getElementById('btn-finish').addEventListener('click', () => {
     let list = document.getElementById('podium-list');
     list.innerHTML = '';
     let sorted = Object.values(players).sort((a,b) => b.score - a.score).slice(0, 3);
-    sorted.forEach(p => {
+    
+    if(sorted.length === 0) { list.innerHTML = '<p class="text-white">Nenhum jogador na sala.</p>'; }
+
+    sorted.forEach((p, index) => {
+      let heights = ['h-48', 'h-40', 'h-32'];
+      let medals = ['🥇 1º LUGAR', '🥈 2º LUGAR', '🥉 3º LUGAR'];
       let card = document.createElement('div');
-      card.className = 'flex-1 bg-[#17122b] p-4 rounded-2xl border border-white/10 flex flex-col justify-end items-center h-36';
-      card.innerHTML = `<div class="font-extrabold text-lg" style="color:${p.color}">${p.name}</div><div class="text-2xl font-black text-[#3dd6ff]">${p.score} pts</div>`;
+      card.className = `flex-1 bg-[#17122b] p-6 rounded-t-2xl border border-white/10 flex flex-col justify-end items-center ${heights[index]} relative overflow-hidden`;
+      card.innerHTML = `
+        <div class="absolute top-0 w-full h-1" style="background:${p.color}"></div>
+        <div class="text-xs font-bold text-white/50 mb-auto mt-2">${medals[index]}</div>
+        <div class="font-black text-2xl uppercase mb-1" style="color:${p.color}">${p.name}</div>
+        <div class="text-3xl font-black text-white">${p.score} <span class="text-sm text-[#9a93b8]">pts</span></div>
+      `;
       list.appendChild(card);
     });
     document.getElementById('podium-modal').classList.remove('hidden');
