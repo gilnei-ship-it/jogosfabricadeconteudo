@@ -6,7 +6,6 @@
   <title>Fábrica de Conteúdos - Controle Gamepad</title>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Biblioteca de Comunicação em Tempo Real pela Internet -->
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
@@ -139,10 +138,10 @@
   </footer>
 
 <script>
-  // Conexão WebSockets gratuita e global para funcionamento na Vercel
+  // Conexão via MQTT pública
   const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-  const TOPIC_IN = 'fabrica_conteudos_arena_events';
-  const TOPIC_OUT = 'fabrica_conteudos_ctl_events';
+  const TOPIC_TO_ARENA = 'fabrica_conteudos_main_game_arena';
+  const TOPIC_FROM_ARENA = 'fabrica_conteudos_main_game_ctrl';
 
   var player = {
     id: 'p_' + Math.random().toString(36).substr(2, 9),
@@ -155,7 +154,7 @@
   };
 
   client.on('connect', () => {
-    client.subscribe(TOPIC_IN);
+    client.subscribe(TOPIC_FROM_ARENA);
   });
 
   function selectColor(color, btn) {
@@ -172,13 +171,13 @@
     document.getElementById('player-disp-name').textContent = player.name;
     document.getElementById('player-disp-name').style.color = player.color;
 
-    client.publish(TOPIC_OUT, JSON.stringify({ type: 'JOIN', player: player }));
+    client.publish(TOPIC_TO_ARENA, JSON.stringify({ type: 'JOIN', player: player }));
   });
 
   function bindBtn(id, action) {
     var el = document.getElementById(id);
     var send = (isStart) => {
-      client.publish(TOPIC_OUT, JSON.stringify({
+      client.publish(TOPIC_TO_ARENA, JSON.stringify({
         type: isStart ? 'INPUT_START' : 'INPUT_END',
         playerId: player.id,
         action: action
