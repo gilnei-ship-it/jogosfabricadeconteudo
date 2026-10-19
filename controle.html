@@ -10,8 +10,8 @@
   <style>
     :root { --bg: #0d0a1a; --text: #f4f0ff; }
     body { background: var(--bg); color: var(--text); font-family: 'Bricolage Grotesque', sans-serif; touch-action: none; user-select: none; overflow: hidden; }
-    .gamepad-btn { transition: transform 0.05s ease, filter 0.1s ease; box-shadow: 0 6px 0px rgba(0,0,0,0.6); }
-    .gamepad-btn:active { transform: translateY(4px) scale(0.95) !important; box-shadow: 0 2px 0px rgba(0,0,0,0.6); filter: brightness(1.3); }
+    .gamepad-btn { transition: transform 0.05s ease, filter 0.1s ease, box-shadow 0.05s ease; box-shadow: 0 6px 0px rgba(0,0,0,0.6); }
+    .gamepad-btn:active, .active-key { transform: translateY(4px) scale(0.95) !important; box-shadow: 0 2px 0px rgba(0,0,0,0.6) !important; filter: brightness(1.3) !important; }
     input { text-transform: uppercase; }
   </style>
 </head>
@@ -41,6 +41,11 @@
 
       <button id="btn-enter" class="w-full py-4 mt-2 rounded-xl bg-gradient-to-r from-[#ff6b00] to-[#ffb700] text-[#0d0a1a] font-extrabold text-lg shadow-lg hover:brightness-110 active:scale-95 transition-all">CONECTAR AGORA ⚡</button>
       <div id="conn-status" class="text-sm font-bold text-[#ffb700] h-6"></div>
+      
+      <!-- Aviso sobre teclado no PC -->
+      <div class="text-xs text-[#9a93b8]/70 mt-2 font-semibold">
+        💻 Jogando no PC? Use as setas do teclado e Espaço para atirar!
+      </div>
     </div>
   </div>
 
@@ -118,7 +123,7 @@
   function selectColor(color, btn) { player.color=color; vibrate(15); playBeep(600,'triangle',0.1); document.querySelectorAll('.skin-btn').forEach(b=>{b.classList.replace('border-white','border-transparent');b.style.boxShadow='none'; b.style.transform='scale(1)';}); btn.classList.replace('border-transparent','border-white'); btn.style.boxShadow=`0 0 8px ${color}`; btn.style.transform='scale(1.2)'; }
 
   document.getElementById('btn-enter').addEventListener('click', () => {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume();
+    if(!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); }
     vibrate(30); playBeep(800,'triangle',0.1);
     let roomVal = document.getElementById('input-room').value.trim().toUpperCase(); let nameVal = document.getElementById('input-name').value.trim();
     if(roomVal.length!==4){ document.getElementById('conn-status').textContent='Código de 4 letras inválido.'; return; }
@@ -137,12 +142,10 @@
       });
       conn.on('data', (data) => {
         if(data.type === 'SYNC') {
-          // Atualiza a cor se o Host alterou para evitar cores duplicadas
           if(data.color && data.color !== player.color) {
             player.color = data.color;
             document.getElementById('p-name').style.color = data.color;
           }
-
           document.getElementById('p-score').textContent = data.score;
           document.getElementById('p-weapon').textContent = 'LVL ' + (data.weaponLvl || 1);
           if(data.weaponLvl >= 4) document.getElementById('p-weapon').classList.replace('text-[#ffb700]', 'text-[#ff3d8b]');
@@ -156,25 +159,4 @@
         
         if(data.type === 'EVENT') {
           if(data.event === 'HIT') { vibrate([150, 50, 150]); playBeep(150, 'sawtooth', 0.4); } 
-          if(data.event === 'KILL') { vibrate(20); playBeep(900, 'square', 0.05); } 
-          if(data.event === 'POWERUP') { vibrate([50, 50, 50, 50, 150]); playPowerUpSound(); } 
-        }
-      });
-      conn.on('error', err => { document.getElementById('conn-status').textContent='Erro ao conectar.'; document.getElementById('btn-enter').disabled=false; document.getElementById('btn-enter').classList.remove('opacity-50'); });
-    });
-  });
-
-  function bind(id, action) {
-    let el = document.getElementById(id);
-    let send = (state) => {
-      if(player.inputs[action] === state) return; player.inputs[action] = state;
-      if(state) { if(action === 'SHOOT') { vibrate(15); playBeep(800, 'triangle', 0.05); } else vibrate(10); } 
-      if(conn && conn.open) conn.send({ type:'INPUT', playerId:player.id, inputs:player.inputs });
-    };
-    el.addEventListener('touchstart',(e)=>{e.preventDefault();send(true);},{passive:false}); el.addEventListener('touchend',(e)=>{e.preventDefault();send(false);},{passive:false});
-    el.addEventListener('mousedown',(e)=>{e.preventDefault();send(true);}); el.addEventListener('mouseup',(e)=>{e.preventDefault();send(false);}); el.addEventListener('mouseleave',(e)=>{e.preventDefault();send(false);});
-  }
-  bind('btn-up','UP'); bind('btn-down','DOWN'); bind('btn-left','LEFT'); bind('btn-right','RIGHT'); bind('btn-a','SHOOT'); bind('btn-y','SPECIAL');
-</script>
-</body>
-</html>
+          if(data.
