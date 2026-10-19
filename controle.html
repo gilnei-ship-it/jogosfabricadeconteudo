@@ -15,29 +15,46 @@
 </head>
 <body class="h-screen w-screen flex flex-col justify-between p-4">
 
-  <!-- TELA DE LOGIN -->
-  <div id="screen-login" class="fixed inset-0 bg-[#0d0a1a] z-50 flex flex-col justify-center items-center p-6 text-center">
+  <!-- TELA DE LOGIN E ESCOLHA DE NAVE -->
+  <div id="screen-login" class="fixed inset-0 bg-[#0d0a1a] z-50 flex flex-col justify-center items-center p-6 text-center overflow-y-auto">
     <div class="mb-2 inline-block px-3 py-1 rounded-full bg-amber-500/10 text-[#ff6b00] border border-[#ff6b00]/30 text-xs font-bold uppercase">
       Jogos da Fábrica de Conteúdos
     </div>
     <h1 class="text-3xl font-extrabold mb-1 bg-gradient-to-r from-[#ff6b00] via-[#ff3d8b] to-[#3dd6ff] bg-clip-text text-transparent">
-      Controle do Piloto
+      Escolha o seu Avião
     </h1>
-    <p class="text-xs text-[#9a93b8] mb-6">Insira os seus dados para entrar na Arena</p>
+    <p class="text-xs text-[#9a93b8] mb-4">Insira o seu nome e selecione o modelo de combate</p>
 
     <div class="w-full max-w-xs space-y-4">
       <input id="input-name" type="text" placeholder="Seu Nome / Apelido" maxlength="12" 
              class="w-full px-4 py-3 rounded-xl bg-[#17122b] border border-white/20 text-white font-bold text-center text-lg focus:outline-none focus:border-[#ff6b00]">
 
-      <div class="grid grid-cols-4 gap-2">
-        <button onclick="selectColor('#ff3d8b', this)" class="skin-btn p-3 rounded-xl bg-[#17122b] border-2 border-[#ff3d8b] flex justify-center items-center"><div class="w-6 h-6 rounded-full bg-[#ff3d8b]"></div></button>
-        <button onclick="selectColor('#0055ff', this)" class="skin-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex justify-center items-center"><div class="w-6 h-6 rounded-full bg-[#0055ff]"></div></button>
-        <button onclick="selectColor('#ff6b00', this)" class="skin-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex justify-center items-center"><div class="w-6 h-6 rounded-full bg-[#ff6b00]"></div></button>
-        <button onclick="selectColor('#4ade80', this)" class="skin-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex justify-center items-center"><div class="w-6 h-6 rounded-full bg-[#4ade80]"></div></button>
+      <!-- SELEÇÃO DE MODELO DE AVIÃO -->
+      <div class="grid grid-cols-3 gap-2">
+        <button onclick="selectModel('fighter', this)" class="model-btn p-3 rounded-xl bg-[#17122b] border-2 border-[#ff3d8b] flex flex-col items-center justify-center">
+          <div class="text-xs font-bold text-[#ff3d8b] mb-1">Ágil</div>
+          <div class="w-8 h-8 bg-[#ff3d8b] rounded-md flex items-center justify-center text-white font-bold text-xs">✈</div>
+        </button>
+        <button onclick="selectModel('heavy', this)" class="model-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex flex-col items-center justify-center">
+          <div class="text-xs font-bold text-[#0055ff] mb-1">Pesado</div>
+          <div class="w-8 h-8 bg-[#0055ff] rounded-md flex items-center justify-center text-white font-bold text-xs">🚀</div>
+        </button>
+        <button onclick="selectModel('stealth', this)" class="model-btn p-3 rounded-xl bg-[#17122b] border-2 border-transparent flex flex-col items-center justify-center">
+          <div class="text-xs font-bold text-[#4ade80] mb-1">Furtivo</div>
+          <div class="w-8 h-8 bg-[#4ade80] rounded-md flex items-center justify-center text-[#0d0a1a] font-bold text-xs">🛸</div>
+        </button>
+      </div>
+
+      <!-- SELEÇÃO DE COR -->
+      <div class="flex justify-center gap-2">
+        <button onclick="selectColor('#ff3d8b', this)" class="skin-btn w-8 h-8 rounded-full bg-[#ff3d8b] border-2 border-white"></button>
+        <button onclick="selectColor('#0055ff', this)" class="skin-btn w-8 h-8 rounded-full bg-[#0055ff] border-2 border-transparent"></button>
+        <button onclick="selectColor('#ff6b00', this)" class="skin-btn w-8 h-8 rounded-full bg-[#ff6b00] border-2 border-transparent"></button>
+        <button onclick="selectColor('#4ade80', this)" class="skin-btn w-8 h-8 rounded-full bg-[#4ade80] border-2 border-transparent"></button>
       </div>
 
       <button id="btn-enter" class="w-full py-4 rounded-xl bg-[#ff6b00] text-white font-extrabold text-lg shadow-lg hover:bg-[#ff8533] active:scale-95 transition-all">
-        DECOLAR 🚀
+        ENTRAR NA ARENA 🚀
       </button>
     </div>
   </div>
@@ -76,17 +93,24 @@
   </div>
 
 <script>
-  const channel = new BroadcastChannel('fabrica_conteudos_channel_v2');
+  const channel = new BroadcastChannel('fabrica_conteudos_v3');
   let player = {
     id: 'p_' + Math.random().toString(36).substr(2, 9),
     name: 'Piloto',
     color: '#ff3d8b',
+    model: 'fighter',
     score: 0,
     lives: 3,
     weaponLvl: 1,
-    x: 100, y: 400,
+    x: 200, y: 400,
     inputs: {}
   };
+
+  function selectModel(model, btn) {
+    player.model = model;
+    document.querySelectorAll('.model-btn').forEach(b => b.classList.replace('border-[#ff3d8b]', 'border-transparent'));
+    btn.classList.replace('border-transparent', 'border-[#ff3d8b]');
+  }
 
   function selectColor(color, btn) {
     player.color = color;
